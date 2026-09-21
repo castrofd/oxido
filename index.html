@@ -299,19 +299,22 @@
                             </h3>
                             <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Letras iguais = sem diferença</span>
                         </div>
-                        <p class="text-xs text-slate-500 mb-2">ANOVA de uma via seguida do teste de Tukey-Kramer sobre o agrupamento selecionado.</p>
-                        <p id="grandMeanNote" class="text-[11px] text-slate-600 mb-3"></p>
+                        <p class="text-xs text-slate-500 mb-2">ANOVA por agrupamento, seguida de Tukey-Kramer entre as épocas. O Ponto 0 é sempre a referência e é comparado individualmente com cada avaliação.</p>
+                        <p id="grandMeanNote" class="text-[11px] text-slate-600 mb-1"></p>
+                        <p id="baselineComparisonNote" class="text-[11px] text-emerald-700 mb-3 font-medium"></p>
                         
                         <div class="overflow-x-auto custom-scrollbar">
                             <table class="w-full text-left text-xs">
                                 <thead class="bg-slate-100 text-slate-700 uppercase font-semibold">
                                     <tr>
                                         <th id="thGroupHeader" class="p-2.5 rounded-l-lg">Grupo / Tratamento</th>
+                                        <th class="p-2.5 text-center">Avaliação</th>
                                         <th class="p-2.5 text-center">n</th>
                                         <th class="p-2.5">Média</th>
-                                        <th class="p-2.5">DP</th>
-                                        <th class="p-2.5">EPM</th>
-                                        <th class="p-2.5 rounded-r-lg text-center">Tukey</th>
+                                        <th class="p-2.5">Δ vs Ponto 0</th>
+                                        <th class="p-2.5">% vs Ponto 0</th>
+                                        <th class="p-2.5 text-center">Tukey</th>
+                                        <th class="p-2.5 rounded-r-lg text-center">Comparação</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tukeyTableBody" class="divide-y divide-slate-100">
@@ -333,11 +336,24 @@
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
                     <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
                         <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
-                            <i class="fa-solid fa-chart-pie text-emerald-600 mr-2"></i> Médias Consolidadas
+                            <i class="fa-solid fa-chart-column text-emerald-600 mr-2"></i> Agrupamentos de Tukey — Médias
+                        </h3>
+                        <span class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-1 rounded-lg font-semibold">a, b, c... = Tukey 5%</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-2">Média de cada avaliação com o agrupamento de Tukey acima da coluna. O gráfico acompanha automaticamente o agrupamento selecionado.</p>
+                    <div class="relative w-full h-64 flex items-center justify-center">
+                        <canvas id="tukeyGroupingChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-arrow-right-arrow-left text-sky-600 mr-2"></i> Incremento / Diferença vs Ponto 0
                         </h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-2">Médias &plusmn; erro padrão, com a letra do teste de Tukey sobre cada coluna.</p>
-                    <div class="relative flex-grow w-full h-48 flex items-center justify-center">
+                    <p class="text-xs text-slate-500 mb-2">Variação numérica de cada avaliação em relação ao Ponto 0, mantendo a indicação de significância.</p>
+                    <div class="relative w-full h-56 flex items-center justify-center">
                         <canvas id="tukeyChart"></canvas>
                     </div>
                 </div>
@@ -751,6 +767,7 @@
            ===================================================================== */
 
         let tukeyChartInstance = null;
+        let tukeyGroupingChartInstance = null;
         let evolutionChartInstance = null;
         let resizeTimer = null;
 
@@ -910,9 +927,11 @@
             });
             renderDepthHeatmap(DEPTHS, datasetByGroup, attr, depthNum);
 
-            // Médias do perfil + ANOVA + Tukey
-            const result = computeGroupStats(filteredData, groupKeys, grouping.keys, selectedAttr);
-            renderTukeyResults(result, attr, depthNum);
+            // Comparativo longitudinal: Ponto 0 é sempre a referência.
+            // O filtro de época NÃO elimina as demais avaliações deste painel;
+            // ele continua valendo para o restante do dashboard.
+            const baselineResult = computeBaselineTukey(rawData, grouping, selectedAttr, depthNum);
+            renderTukeyResults(baselineResult, attr, depthNum);
 
             // ANOVA independente por camada
             renderDepthAnova(epochData, groupKeys, grouping, selectedAttr, attr, selectedTipo, depthNum);
@@ -921,6 +940,100 @@
             renderPivotTable(selectedAttr, attr, depthNum);
 
             renderEvolutionChart(grouping, selectedAttr, attr, depthNum);
+        }
+
+        // =====================================================================
+        // Comparativo longitudinal com Ponto 0 como referência fixa
+        // =====================================================================
+        // A unidade de comparação é a mesma definida pelo agrupamento escolhido,
+        // mas a coluna Tipo (época) é retirada da chave quando presente. Assim:
+        //   Grupo              -> cada Grupo é comparado ao longo das épocas
+        //   Tratamento         -> cada Tratamento é comparado ao longo das épocas
+        //   Tipo × Grupo       -> cada Grupo é comparado ao longo das épocas
+        //   Tipo × Tratamento  -> cada Tratamento é comparado ao longo das épocas
+        //   Tipo               -> comparação global entre épocas
+        // O teste é recalculado dinamicamente para atributo e profundidade.
+        function computeBaselineTukey(dataset, grouping, selectedAttr, selectedDepth) {
+            const depthFiltered = selectedDepth === null || selectedDepth === undefined
+                ? dataset
+                : dataset.filter(r => r.Profun === selectedDepth);
+
+            const baseKeys = grouping.keys.filter(k => k !== 'Tipo');
+            const baseGroups = [];
+            const seen = new Set();
+
+            depthFiltered.forEach(r => {
+                const key = baseKeys.length ? keyOf(r, baseKeys) : 'Geral';
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    baseGroups.push(key);
+                }
+            });
+
+            const comparisons = [];
+            const groupResults = [];
+
+            baseGroups.forEach(baseKey => {
+                const epochGroups = EPOCHS.map(epoch => {
+                    const rows = depthFiltered.filter(r => {
+                        const k = baseKeys.length ? keyOf(r, baseKeys) : 'Geral';
+                        return k === baseKey && r.Tipo === epoch;
+                    });
+                    return {
+                        key: epoch,
+                        values: valuesOf(rows, selectedAttr)
+                    };
+                }).filter(g => g.values.length > 0);
+
+                const anova = oneWayAnova(epochGroups);
+                const ordered = epochGroups
+                    .map(g => ({ key: g.key, ...summarize(g.values) }))
+                    .sort((a, b) => EPOCHS.indexOf(a.key) - EPOCHS.indexOf(b.key));
+
+                const tukey = tukeyLetters(ordered.slice().sort((a, b) => b.mean - a.mean), anova.msW, anova.dfW);
+                const baseline = ordered.find(g => g.key === EPOCHS[0]);
+
+                ordered.forEach(g => {
+                    const letter = tukey.letters[g.key] || '—';
+                    const isBaseline = g.key === EPOCHS[0];
+                    let delta = NaN, pct = NaN, dms = NaN, significant = false;
+
+                    if (baseline && !isBaseline) {
+                        delta = g.mean - baseline.mean;
+                        pct = baseline.mean !== 0 ? (delta / Math.abs(baseline.mean)) * 100 : NaN;
+                        if (isFinite(tukey.q) && isFinite(anova.msW) && anova.msW > 0 && anova.dfW >= 1) {
+                            dms = tukey.q * Math.sqrt((anova.msW / 2) *
+                                (1 / baseline.n + 1 / g.n));
+                            significant = Math.abs(delta) > dms;
+                        }
+                    } else if (isBaseline) {
+                        delta = 0;
+                        pct = 0;
+                    }
+
+                    comparisons.push({
+                        baseKey,
+                        epoch: g.key,
+                        n: g.n,
+                        mean: g.mean,
+                        sd: g.sd,
+                        sem: g.sem,
+                        letter,
+                        delta,
+                        pct,
+                        dms,
+                        significant,
+                        isBaseline,
+                        anovaP: anova.p,
+                        dfW: anova.dfW,
+                        q: tukey.q
+                    });
+                });
+
+                groupResults.push({ baseKey, ordered, baseline, anova, tukey });
+            });
+
+            return { comparisons, groupResults, epochs: EPOCHS.slice() };
         }
 
         // Média do perfil de cada grupo = média de todas as observações do grupo
@@ -1133,86 +1246,218 @@
         }
 
         function renderTukeyResults(result, attr, selectedDepth) {
-            const { rows, anova, hsd, q } = result;
-
+            const { comparisons, groupResults, epochs } = result;
             const cardList = document.getElementById('treatmentsCardList');
             const tbody = document.getElementById('tukeyTableBody');
             cardList.innerHTML = '';
             tbody.innerHTML = '';
 
-            const barColors = [
-                'rgba(16, 185, 129, 0.85)', 'rgba(59, 130, 246, 0.85)', 'rgba(234, 179, 8, 0.85)',
-                'rgba(168, 85, 247, 0.85)', 'rgba(236, 72, 153, 0.85)', 'rgba(14, 165, 233, 0.85)',
-                'rgba(249, 115, 22, 0.85)', 'rgba(132, 204, 22, 0.85)', 'rgba(99, 102, 241, 0.85)'
-            ];
+            const baseEpoch = epochs[0];
+            const labelEpoch = ep => ep === baseEpoch ? `${ep} (REFERÊNCIA)` : ep;
+            const esc = v => String(v)
+                .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
-            rows.forEach(r => {
-                const label = r.key.split(KEY_SEP).join(' › ');
+            document.getElementById('thGroupHeader').innerText = 'Grupo / Tratamento';
+
+            // Cards resumem somente a comparação Ponto 0 -> última avaliação.
+            groupResults.forEach(gr => {
+                const base = gr.baseline;
+                const last = gr.ordered.find(g => g.key === epochs[epochs.length - 1]);
+                if (!base || !last) return;
+                const delta = last.mean - base.mean;
+                const pct = base.mean !== 0 ? delta / Math.abs(base.mean) * 100 : NaN;
+                const cls = delta > 0 ? 'text-emerald-700' : (delta < 0 ? 'text-red-700' : 'text-slate-600');
+                const sign = delta > 0 ? '+' : '';
+                const groupLabel = gr.baseKey === 'Geral' ? 'Geral' : gr.baseKey.split(KEY_SEP).join(' › ');
                 cardList.innerHTML += `
-                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center hover:border-emerald-300 transition">
-                        <div class="pr-2">
-                            <span class="text-xs font-bold text-slate-800 block">${label}</span>
-                            <span class="text-[10px] text-slate-500">Média: <strong class="text-emerald-700">${nf(r.mean)}</strong> ${attr.unit} &bull; n=${r.n}</span>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 hover:border-emerald-300 transition">
+                        <div class="flex justify-between items-center gap-2">
+                            <span class="text-xs font-bold text-slate-800">${esc(groupLabel)}</span>
+                            <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">${epochs.length} épocas</span>
                         </div>
-                        <div class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-200">${r.letter}</div>
+                        <div class="text-[10px] text-slate-500 mt-1">
+                            ${esc(baseEpoch)}: <strong>${nf(base.mean)}</strong> ${attr.unit}
+                            &nbsp;→&nbsp; ${esc(epochs[epochs.length - 1])}: <strong>${nf(last.mean)}</strong> ${attr.unit}
+                        </div>
+                        <div class="text-xs font-bold ${cls} mt-1">${sign}${nf(delta)} ${attr.unit} (${sign}${nf(pct, 1)}%)</div>
                     </div>`;
+            });
+
+            // Uma linha por grupo × época. Ponto 0 sempre aparece e todas as demais
+            // épocas são comparadas individualmente contra ele pelo Tukey-Kramer.
+            comparisons.forEach(c => {
+                const label = c.baseKey === 'Geral' ? 'Geral' : c.baseKey.split(KEY_SEP).join(' › ');
+                const deltaCls = c.delta > 0 ? 'text-emerald-700' : (c.delta < 0 ? 'text-red-700' : 'text-slate-600');
+                const sign = c.delta > 0 ? '+' : '';
+                const pctSign = c.pct > 0 ? '+' : '';
+                let compText, compClass;
+
+                if (c.isBaseline) {
+                    compText = 'Referência';
+                    compClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                } else if (!isFinite(c.dms)) {
+                    compText = 'Sem GL para Tukey';
+                    compClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                } else if (c.significant) {
+                    compText = 'Difere do Ponto 0';
+                    compClass = 'bg-red-50 text-red-700 border-red-200';
+                } else {
+                    compText = 'Não difere do Ponto 0';
+                    compClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                }
 
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-50 transition">
-                        <td class="p-2.5 font-medium text-slate-800">${label}</td>
-                        <td class="p-2.5 text-center text-slate-500">${r.n}</td>
-                        <td class="p-2.5 font-semibold text-emerald-700">${nf(r.mean)}</td>
-                        <td class="p-2.5 text-slate-500">± ${nf(r.sd)}</td>
-                        <td class="p-2.5 text-slate-500">± ${nf(r.sem)}</td>
+                        <td class="p-2.5 font-medium text-slate-800">${esc(label)}</td>
+                        <td class="p-2.5 text-center font-semibold ${c.isBaseline ? 'text-emerald-700' : 'text-slate-700'}">${esc(labelEpoch(c.epoch))}</td>
+                        <td class="p-2.5 text-center text-slate-500">${c.n}</td>
+                        <td class="p-2.5 font-semibold text-slate-800">${nf(c.mean)}</td>
+                        <td class="p-2.5 font-bold ${deltaCls}">${c.isBaseline ? '0,00' : `${sign}${nf(c.delta)}`}</td>
+                        <td class="p-2.5 font-bold ${deltaCls}">${c.isBaseline ? '0,0%' : `${pctSign}${nf(c.pct, 1)}%`}</td>
                         <td class="p-2.5 text-center">
-                            <span class="inline-block bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-xs">${r.letter}</span>
+                            <span class="inline-block bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-xs">${c.letter}</span>
+                        </td>
+                        <td class="p-2.5 text-center">
+                            <span class="inline-block ${compClass} border font-semibold px-2 py-0.5 rounded text-[10px]">${compText}</span>
                         </td>
                     </tr>`;
             });
 
-            // Resumo da ANOVA que sustenta as letras
-            const pTxt = isFinite(anova.p)
-                ? (anova.p < 0.001 ? '&lt; 0,001' : nf(anova.p, 4))
-                : '—';
-            const signif = isFinite(anova.p) && anova.p <= 0.05;
+            const validAnovas = groupResults.filter(g => isFinite(g.anova.p));
+            const anySig = comparisons.some(c => !c.isBaseline && c.significant);
+            const noTukey = comparisons.some(c => !c.isBaseline && !isFinite(c.dms));
+            const first = groupResults[0];
+
             document.getElementById('anovaSummary').innerHTML = `
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1">
-                    <span>Grupos (k): <strong class="text-slate-700">${anova.k}</strong></span>
-                    <span>Obs. (N): <strong class="text-slate-700">${anova.N}</strong></span>
-                    <span>GL resíduo: <strong class="text-slate-700">${anova.dfW}</strong></span>
-                    <span>F: <strong class="text-slate-700">${nf(anova.F)}</strong></span>
-                    <span>p: <strong class="${signif ? 'text-emerald-700' : 'text-amber-700'}">${pTxt}</strong></span>
-                    <span>CV: <strong class="text-slate-700">${nf(anova.cv, 1)}%</strong></span>
-                    <span>QM resíduo: <strong class="text-slate-700">${nf(anova.msW, 3)}</strong></span>
-                    <span>q(0,05): <strong class="text-slate-700">${nf(q, 3)}</strong></span>
-                    <span>DMS: <strong class="text-slate-700">${nf(hsd, 3)}</strong> ${attr.unit}</span>
+                    <span>Grupos comparados: <strong class="text-slate-700">${groupResults.length}</strong></span>
+                    <span>Épocas: <strong class="text-slate-700">${epochs.length}</strong></span>
+                    <span>Referência: <strong class="text-emerald-700">${esc(baseEpoch)}</strong></span>
+                    <span>ANOVAs válidas: <strong class="text-slate-700">${validAnovas.length}</strong></span>
+                    <span>Comparações significativas: <strong class="${anySig ? 'text-red-700' : 'text-emerald-700'}">${comparisons.filter(c => !c.isBaseline && c.significant).length}</strong></span>
+                    <span>Tukey: <strong class="text-slate-700">5%</strong></span>
                 </div>
-                <div class="mt-1.5 ${signif ? 'text-emerald-700' : 'text-amber-700'} font-semibold">
-                    ${signif
-                        ? 'ANOVA significativa (p ≤ 0,05): as letras apontam diferenças reais entre as médias.'
-                        : 'ANOVA não significativa (p > 0,05): não há diferença detectável — todos recebem a mesma letra.'}
+                <div class="mt-1.5 ${anySig ? 'text-red-700' : 'text-emerald-700'} font-semibold">
+                    ${anySig
+                        ? 'Há avaliações que diferem estatisticamente do Ponto 0 em pelo menos um agrupamento.'
+                        : 'Nenhuma avaliação apresentou diferença estatística em relação ao Ponto 0 nos agrupamentos com erro experimental calculável.'}
                 </div>
-                ${(selectedDepth === null || selectedDepth === undefined) && DEPTHS.length > 1 ? `
+                ${noTukey ? `
                 <div class="mt-1.5 text-amber-700">
-                    &#9888; Perfil completo: as ${DEPTHS.length} camadas entram como se fossem repetições, mas são
-                    medidas repetidas da mesma parcela. Isso infla os graus de liberdade do resíduo
-                    (${anova.dfW} aqui) e deixa o teste otimista. Para a inferência sobre tratamentos, use o
-                    painel <strong>ANOVA &amp; Tukey por camada</strong> ou escolha uma profundidade no filtro.
+                    &#9888; Alguns agrupamentos não possuem graus de liberdade residuais suficientes para calcular o Tukey-Kramer. Nesses casos, a diferença numérica é mostrada, mas não é marcada como significativa.
                 </div>` : ''}`;
 
+            const depthText = selectedDepth === null || selectedDepth === undefined
+                ? 'perfil completo'
+                : `${selectedDepth} cm`;
             document.getElementById('grandMeanNote').innerHTML =
-                `Média geral do recorte (${anova.N} observações): <strong class="text-emerald-700">${nf(anova.grand)}</strong> ${attr.unit}`;
+                `Comparação longitudinal no <strong>${depthText}</strong>, sempre usando <strong class="text-emerald-700">${esc(baseEpoch)}</strong> como referência.`;
+            document.getElementById('baselineComparisonNote').innerHTML =
+                `<i class="fa-solid fa-arrow-right-arrow-left mr-1"></i> Δ = média da avaliação − média do Ponto 0. % = Δ / |média do Ponto 0| × 100. O filtro de época não altera este comparativo: todas as avaliações permanecem visíveis.`;
 
-            updateTukeyChart(
-                rows.map(r => r.key.split(KEY_SEP)),
-                rows.map(r => r.mean),
-                rows.map(r => r.sem),
-                rows.map(r => r.letter),
-                attr, barColors
-            );
+            // Gráfico 1: médias e agrupamentos de Tukey (todas as épocas).
+            const meanRows = comparisons.filter(c => c.n > 0);
+            const meanLabels = meanRows.map(c => `${c.baseKey === 'Geral' ? 'Geral' : c.baseKey.split(KEY_SEP).join(' › ')} — ${c.epoch}`);
+            const meanData = meanRows.map(c => c.mean);
+            const meanSems = meanRows.map(c => c.sem || 0);
+            const meanLetters = meanRows.map(c => c.letter);
+            const meanColors = meanRows.map((c, i) => {
+                const palette = ['rgba(16,185,129,0.82)','rgba(14,165,233,0.82)','rgba(99,102,241,0.82)','rgba(168,85,247,0.82)','rgba(245,158,11,0.82)','rgba(20,184,166,0.82)'];
+                return palette[i % palette.length];
+            });
+            updateTukeyGroupingChart(meanLabels, meanData, meanSems, meanLetters, attr, meanColors);
+
+            // Gráfico 2: diferença de cada avaliação contra o Ponto 0.
+            const chartRows = comparisons.filter(c => !c.isBaseline);
+            const labels = chartRows.map(c => `${c.baseKey === 'Geral' ? 'Geral' : c.baseKey.split(KEY_SEP).join(' › ')} — ${c.epoch}`);
+            const data = chartRows.map(c => c.delta);
+            const sems = chartRows.map(c => 0);
+            const letters = chartRows.map(c => c.significant ? '*' : 'ns');
+            const barColors = chartRows.map(c => c.delta >= 0 ? 'rgba(16, 185, 129, 0.85)' : 'rgba(239, 68, 68, 0.85)');
+
+            updateTukeyChart(labels, data, sems, letters, attr, barColors, true);
         }
 
-        function updateTukeyChart(labels, data, sems, letters, attr, colors) {
+        function updateTukeyGroupingChart(labels, data, sems, letters, attr, colors) {
+            const canvas = document.getElementById('tukeyGroupingChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (tukeyGroupingChartInstance) tukeyGroupingChartInstance.destroy();
+
+            const tukeyLabels = {
+                id: 'tukeyLabels',
+                afterDatasetsDraw(chart) {
+                    const c = chart.ctx, y = chart.scales.y;
+                    const meta = chart.getDatasetMeta(0);
+                    c.save();
+                    meta.data.forEach((bar, i) => {
+                        const e = sems[i];
+                        let topPx = bar.y;
+                        if (isFinite(e) && e > 0) {
+                            const top = y.getPixelForValue(data[i] + e);
+                            const bottom = y.getPixelForValue(data[i] - e);
+                            c.strokeStyle = '#475569';
+                            c.lineWidth = 1.1;
+                            c.beginPath();
+                            c.moveTo(bar.x, top); c.lineTo(bar.x, bottom);
+                            c.moveTo(bar.x - 4, top); c.lineTo(bar.x + 4, top);
+                            c.moveTo(bar.x - 4, bottom); c.lineTo(bar.x + 4, bottom);
+                            c.stroke();
+                            topPx = top;
+                        }
+                        c.textAlign = 'center';
+                        c.font = 'bold 11px Inter, sans-serif';
+                        c.fillStyle = '#0f172a';
+                        c.fillText(letters[i] || '—', bar.x, topPx - 8);
+                        c.font = '600 9px Inter, sans-serif';
+                        c.fillStyle = '#475569';
+                        c.fillText(nf(data[i]), bar.x, topPx - 21);
+                    });
+                    c.restore();
+                }
+            };
+
+            tukeyGroupingChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: `${attr.name} (${attr.unit})`,
+                        data,
+                        backgroundColor: colors,
+                        borderColor: '#334155',
+                        borderWidth: 0.6,
+                        borderRadius: 7,
+                        maxBarThickness: 42
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 34, left: 4, right: 4 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: items => items[0].label.split(' — ').join(' › '),
+                                label: c => {
+                                    const i = c.dataIndex;
+                                    return [`Média: ${nf(data[i])} ${attr.unit}`, `Tukey: ${letters[i] || '—'}`, `EPM: ${nf(sems[i])} ${attr.unit}`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, title: { display: true, text: attr.unit, font: { size: 10, weight: 'bold' } } },
+                        x: { grid: { display: false }, ticks: { font: { size: 8, weight: 'bold' }, autoSkip: false, maxRotation: 55, minRotation: 35 } }
+                    }
+                },
+                plugins: [tukeyLabels]
+            });
+        }
+
+        function updateTukeyChart(labels, data, sems, letters, attr, colors, isDeltaChart = false) {
             const ctx = document.getElementById('tukeyChart').getContext('2d');
             if (tukeyChartInstance) tukeyChartInstance.destroy();
 
@@ -1252,7 +1497,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: `${attr.name} (${attr.unit})`,
+                        label: isDeltaChart ? `Δ ${attr.name} vs Ponto 0 (${attr.unit})` : `${attr.name} (${attr.unit})`,
                         data: data,
                         backgroundColor: colors.slice(0, labels.length),
                         borderColor: '#059669',
@@ -1269,7 +1514,7 @@
                         tooltip: {
                             callbacks: {
                                 title: items => items[0].label.split(',').join(' › '),
-                                label: c => `${nf(c.raw)} ${attr.unit}  (Tukey: ${letters[c.dataIndex]})`
+                                label: c => `${nf(c.raw)} ${attr.unit}  (${isDeltaChart ? (letters[c.dataIndex] === '*' ? 'difere do Ponto 0' : 'não difere do Ponto 0') : `Tukey: ${letters[c.dataIndex]}`})`
                             }
                         }
                     },
