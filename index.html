@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil de Profundidade do Solo & Teste de Tukey (Experimento Óxido)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-emerald-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-800 p-2.5 rounded-xl border border-emerald-700 shadow-inner">
+                    <i class="fa-solid fa-layer-group text-xl text-emerald-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">AgroSoil Analytics & Tukey Studio</h1>
+                    <p class="text-xs text-emerald-300">Acompanhamento do Experimento Óxido &amp; Evolução Temporal do Solo</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span id="stageBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-500/30">
+                    <i class="fa-solid fa-spinner animate-spin text-[10px] mr-1.5 text-amber-300"></i> Experimento em andamento
+                </span>
+                <span id="recordCountBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-800 text-emerald-100 border border-emerald-700 shadow-sm">
+                    <i class="fa-solid fa-database text-[8px] text-emerald-400 mr-1.5"></i> Carregando dados...
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Barra de Progresso / Linha do Tempo do Experimento -->
+    <section class="bg-emerald-950 border-b border-emerald-800 text-emerald-100 py-3">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+            <span class="font-bold text-emerald-300 uppercase tracking-wider flex items-center">
+                <i class="fa-solid fa-timeline mr-2 text-emerald-400"></i> Andamento das Amostragens:
+            </span>
+            <div id="timelineTrack" class="flex items-center space-x-2 sm:space-x-4 overflow-x-auto w-full md:w-auto py-1 custom-scrollbar">
+                <!-- Populated by JS a partir das épocas presentes na base -->
+            </div>
+        </div>
+    </section>
+
+    <!-- KPIs de Progresso e Ganho Acumulado -->
+    <section class="max-w-7xl mx-auto px-4 pt-6 w-full">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500" id="kpiAttrLabel">Média do atributo</span>
+                    <div class="text-xl font-bold text-slate-900 mt-0.5" id="kpiCaVal">&mdash;</div>
+                    <span class="text-[10px] font-bold flex items-center mt-1" id="kpiCaDelta">&mdash;</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-cubes"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Saturação por Bases (V%)</span>
+                    <div class="text-xl font-bold text-slate-900 mt-0.5" id="kpiVVal">&mdash;</div>
+                    <span class="text-[10px] font-bold flex items-center mt-1" id="kpiVDelta">&mdash;</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Elevação de pH (CaCl2)</span>
+                    <div class="text-xl font-bold text-slate-900 mt-0.5" id="kpiPhVal">&mdash;</div>
+                    <span class="text-[10px] font-bold flex items-center mt-1" id="kpiPhDelta">&mdash;</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-flask font-bold"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Amostragens Registradas</span>
+                    <div class="text-xl font-bold text-slate-900 mt-0.5" id="kpiTotalSamples">&mdash;</div>
+                    <span class="text-[10px] text-slate-500 font-medium flex items-center mt-1" id="kpiSamplesNote">&mdash;</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-vial-circle-check"></i>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Sidebar de Filtros e Parâmetros -->
+        <section class="lg:col-span-1 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col space-y-5">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-filter text-emerald-600 mr-2"></i> Filtros e Agrupamento
+                </h2>
+                
+                <!-- Seletor de Agrupamento das Médias -->
+                <div class="space-y-1.5 mb-3">
+                    <label for="groupBySelect" class="block text-xs font-bold text-emerald-800">
+                        <i class="fa-solid fa-object-group mr-1"></i> Agrupar Médias por:
+                    </label>
+                    <select id="groupBySelect" class="w-full bg-emerald-50 border border-emerald-300 text-emerald-900 text-sm font-medium rounded-xl p-2.5 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                        <!-- Populated by JS -->
+                    </select>
+                    <p class="text-[10px] text-emerald-700/80 leading-snug">
+                        As médias, o desvio e o teste de Tukey são recalculados para a combinação escolhida.
+                    </p>
+                </div>
+
+                <!-- Seletor da Coluna Tipo (Época) -->
+                <div class="space-y-1.5 mb-3">
+                    <label for="tipoSelect" class="block text-xs font-medium text-slate-700">Filtrar Época / Amostragem:</label>
+                    <select id="tipoSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <!-- Seletor de Profundidade -->
+                <div class="space-y-1.5 mb-3">
+                    <label for="depthSelect" class="block text-xs font-medium text-slate-700">Profundidade da camada:</label>
+                    <select id="depthSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <!-- Seletor de Atributos/Nutrientes da Planilha -->
+                <div class="space-y-1.5 mb-3">
+                    <label for="attributeSelect" class="block text-xs font-medium text-slate-700">Atributo / Nutriente:</label>
+                    <select id="attributeSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Card de Interpretação e Limiares Agronômicos -->
+            <div class="bg-emerald-50/70 border border-emerald-100 rounded-xl p-4 shadow-sm">
+                <h3 class="text-xs font-bold text-emerald-900 uppercase mb-1" id="attrTitleName">Cálcio (Ca)</h3>
+                <p class="text-xs text-emerald-700 mb-2" id="attrDescription">Teor de cálcio trocável no perfil.</p>
+                <div class="flex justify-between text-[11px] font-medium text-emerald-800 mb-2">
+                    <span id="attrMinVal">Mín: 0</span>
+                    <span id="attrUnit" class="bg-emerald-200/80 px-2 py-0.5 rounded text-emerald-900 font-bold">mmolc/dm³</span>
+                    <span id="attrMaxVal">Máx: 50</span>
+                </div>
+                <div class="mt-2 pt-2 border-t border-emerald-200/60 text-[10px] text-emerald-900 space-y-1 font-medium">
+                    <div class="flex justify-between"><span class="text-pink-600 font-bold">Muito Baixo:</span> <span id="clsMB">&lt; 8</span></div>
+                    <div class="flex justify-between"><span class="text-red-600 font-bold">Baixo:</span> <span id="clsB">9 - 15</span></div>
+                    <div class="flex justify-between"><span class="text-amber-600 font-bold">Médio:</span> <span id="clsM">16 - 25</span></div>
+                    <div class="flex justify-between"><span class="text-emerald-700 font-bold">Alto:</span> <span id="clsA">26 - 40</span></div>
+                    <div class="flex justify-between"><span class="text-cyan-700 font-bold">Muito Alto:</span> <span id="clsMA">&gt; 41</span></div>
+                </div>
+            </div>
+
+            <!-- Resumo das Médias por Agrupamento Selecionado -->
+            <div class="flex-grow">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center">
+                    <i class="fa-solid fa-seedling text-emerald-600 mr-2"></i> Agrupamentos
+                </h3>
+                <div id="treatmentsCardList" class="space-y-2.5">
+                    <!-- Dinâmico via JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Área Principal de Visualizações -->
+        <section class="lg:col-span-3 flex flex-col space-y-6">
+            
+            <!-- Mapa de Calor Vertical por Profundidade -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center flex-wrap gap-2">
+                            <span><i class="fa-solid fa-bars-staggered text-emerald-600 mr-1.5"></i> Mapa de Calor Vertical (10 - 40 cm)</span>
+                            <span id="activeGroupLabel" class="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200"></span>
+                            <span id="activeTipoLabel" class="text-xs font-normal text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200"></span>
+                            <span id="activeDepthLabel" class="text-xs font-normal text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200"></span>
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Distribuição vertical do nutriente no perfil agregada pela coluna selecionada</p>
+                    </div>
+                    <div class="mt-2 sm:mt-0 flex items-center space-x-1.5 text-[10px]">
+                        <span class="text-slate-500">M.Baixo</span>
+                        <div class="w-3.5 h-3 bg-pink-500 rounded-sm"></div>
+                        <div class="w-3.5 h-3 bg-red-500 rounded-sm"></div>
+                        <div class="w-3.5 h-3 bg-amber-400 rounded-sm"></div>
+                        <div class="w-3.5 h-3 bg-green-500 rounded-sm"></div>
+                        <div class="w-3.5 h-3 bg-cyan-400 rounded-sm"></div>
+                        <span class="text-slate-500">M.Alto</span>
+                    </div>
+                </div>
+
+                <div class="relative w-full h-72 bg-slate-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <canvas id="depthHeatmapCanvas" class="w-full h-full"></canvas>
+                </div>
+                <div class="mt-2.5 flex justify-between text-xs text-slate-500 px-1 font-medium">
+                    <span>Superfície (10 cm) no topo</span>
+                    <span>Subsuperfície (40 cm) na base</span>
+                </div>
+            </div>
+
+            <!-- Tabela Cruzada de Médias: Tipo (colunas) x Grupo (linhas) -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-2 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-table-cells text-emerald-600 mr-2"></i> Médias por Tipo &times; Grupo
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Média &plusmn; desvio padrão (n) de cada cruzamento, com as médias marginais de cada Grupo e de cada Tipo.
+                        </p>
+                    </div>
+                    <span id="pivotAttrLabel" class="mt-2 sm:mt-0 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200"></span>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-xs">
+                        <thead id="pivotHead" class="bg-slate-100 text-slate-700 uppercase font-semibold"></thead>
+                        <tbody id="pivotBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <p class="mt-3 text-[11px] text-slate-500 italic">
+                    * Cada célula é a média das 4 profundidades (10 a 40 cm) do Grupo naquela época. As marginais são médias de todas as observações da linha/coluna.
+                </p>
+            </div>
+
+            <!-- Seção do Gráfico de Evolução Temporal (Andamento do Experimento) -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-chart-line text-emerald-600 mr-2"></i> Evolução Temporal do Experimento
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Comportamento médio do nutriente ao longo das épocas de avaliação registradas na planilha</p>
+                    </div>
+                    <span class="text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">
+                        <i class="fa-solid fa-clock-rotate-left mr-1"></i> Linha do Tempo
+                    </span>
+                </div>
+                <div class="relative w-full h-56">
+                    <canvas id="evolutionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ANOVA independente por camada (repetições como unidade experimental) -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-2 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-layer-group text-emerald-600 mr-2"></i> ANOVA &amp; Tukey por camada
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Uma análise independente para cada profundidade, com as repetições (R1&ndash;R4) como unidade experimental.
+                            Todas as camadas aparecem sempre; o filtro de profundidade apenas destaca a linha.
+                        </p>
+                    </div>
+                    <span id="depthAnovaScope" class="mt-2 sm:mt-0 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200"></span>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-xs">
+                        <thead id="depthAnovaHead" class="bg-slate-100 text-slate-700 uppercase font-semibold"></thead>
+                        <tbody id="depthAnovaBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <div class="mt-3 text-[11px] text-slate-500 space-y-1">
+                    <p class="italic">
+                        * Média seguida da letra do Tukey (5%) e do n entre parênteses. Letras valem apenas dentro da mesma linha (camada).
+                    </p>
+                    <p id="depthAnovaWarning" class="text-amber-700 font-semibold"></p>
+                </div>
+            </div>
+
+            <!-- Seção do Teste de Tukey e Gráfico de Médias -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Tabela de Teste de Tukey -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center">
+                                <i class="fa-solid fa-chart-bar text-emerald-600 mr-2"></i> Teste de Tukey (p ≤ 0.05)
+                            </h3>
+                            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Letras iguais = sem diferença</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-2">ANOVA de uma via seguida do teste de Tukey-Kramer sobre o agrupamento selecionado.</p>
+                        <p id="grandMeanNote" class="text-[11px] text-slate-600 mb-3"></p>
+                        
+                        <div class="overflow-x-auto custom-scrollbar">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-100 text-slate-700 uppercase font-semibold">
+                                    <tr>
+                                        <th id="thGroupHeader" class="p-2.5 rounded-l-lg">Grupo / Tratamento</th>
+                                        <th class="p-2.5 text-center">n</th>
+                                        <th class="p-2.5">Média</th>
+                                        <th class="p-2.5">DP</th>
+                                        <th class="p-2.5">EPM</th>
+                                        <th class="p-2.5 rounded-r-lg text-center">Tukey</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tukeyTableBody" class="divide-y divide-slate-100">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-100">
+                        <div id="anovaSummary" class="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3"></div>
+                        <p class="mt-2 text-[11px] text-slate-500 italic">
+                            * Médias seguidas de mesma letra não diferem entre si pelo teste de Tukey a 5% de probabilidade.
+                            DMS = diferença mínima significativa; EPM = erro padrão da média; DP = desvio padrão amostral (n&minus;1).
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Gráfico Comparativo de Médias Consolidadas -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                            <i class="fa-solid fa-chart-pie text-emerald-600 mr-2"></i> Médias Consolidadas
+                        </h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-2">Médias &plusmn; erro padrão, com a letra do teste de Tukey sobre cada coluna.</p>
+                    <div class="relative flex-grow w-full h-48 flex items-center justify-center">
+                        <canvas id="tukeyChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div>Experimento Óxido &bull; Análise Espacial Vertical &amp; Agrupamento de Médias &copy; 2026</div>
+            <div id="footerUpdate" class="text-emerald-700 font-semibold"></div>
+        </div>
+    </footer>
+
+    <script>
+        // Dados reais exportados de "Experimento Óxido.xlsx" (Planilha1): 72 registros.
+        // Nomes de tratamento normalizados ("Catec R4" -> "Caltec R4", "Comun R1" -> "Comum R1",
+        // espaços duplicados/finais removidos). Delineamento desbalanceado: Caltec e Comum com 4
+        // repetições por profundidade, Testemunha com 1.
+        const rawData = [
+            // Ponto 0 — Testemunha
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 10, pH: 5.4, HAl: 9.68, Al: 0, Ca: 37.59, Mg: 13.721, K: 5.5884, PResina: 37.1271, S: 5.5955, Cu: 0.167, Fe: 19.961, Mn: 3.547, Zn: 0.982, B: 0.3125, MO: 25.475, SB: 56.8994, CTC: 66.5794, V: 85.46 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 20, pH: 5.39, HAl: 9.19, Al: 0, Ca: 36.474, Mg: 12.456, K: 4.9695, PResina: 36.9776, S: 5.1964, Cu: 0.183, Fe: 19.878, Mn: 3.431, Zn: 1.0718, B: 0.2912, MO: 25.8288, SB: 53.8995, CTC: 63.0895, V: 85.43 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 30, pH: 5.37, HAl: 9.09, Al: 0, Ca: 41.367, Mg: 14.3764, K: 6.8124, PResina: 62.2392, S: 5.5156, Cu: 0.211, Fe: 36.186, Mn: 3.177, Zn: 1.1352, B: 0.2317, MO: 25.475, SB: 62.5558, CTC: 71.6458, V: 87.31 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 40, pH: 5.32, HAl: 10.21, Al: 0, Ca: 35.572, Mg: 13.1067, K: 5.4877, PResina: 28.009, S: 5.9148, Cu: 0.123, Fe: 19.917, Mn: 1.577, Zn: 0.4219, B: 0.2359, MO: 25.8288, SB: 54.1664, CTC: 64.3764, V: 84.14 },
+
+            // Ponto 0 — Caltec
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 10, pH: 5.49, HAl: 9.58, Al: 0, Ca: 37.435, Mg: 13.8418, K: 2.971, PResina: 14.5561, S: 6.713, Cu: 0.118, Fe: 19.828, Mn: 2.229, Zn: 0.4299, B: 0.1254, MO: 24.9443, SB: 54.2478, CTC: 63.8278, V: 84.99 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 20, pH: 5.38, HAl: 10.21, Al: 0, Ca: 33.07, Mg: 9.9629, K: 2.5247, PResina: 15.154, S: 5.1165, Cu: 0.132, Fe: 19.565, Mn: 2.014, Zn: 0.463, B: 0.1381, MO: 18.0453, SB: 45.5576, CTC: 55.7676, V: 81.69 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 30, pH: 5.32, HAl: 10.21, Al: 0, Ca: 27.554, Mg: 8.7306, K: 2.6537, PResina: 15.154, S: 4.7972, Cu: 0.132, Fe: 19.822, Mn: 1.244, Zn: 0.3292, B: 0.1296, MO: 17.5146, SB: 38.9383, CTC: 49.1483, V: 79.23 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 40, pH: 5.12, HAl: 14, Al: 0, Ca: 20.361, Mg: 6.7476, K: 2.5369, PResina: 6.1853, S: 13.4179, Cu: 0.158, Fe: 38.51, Mn: 0.593, Zn: 0.2089, B: 0.0956, MO: 17.3377, SB: 29.6455, CTC: 43.6455, V: 67.92 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 10, pH: 5.38, HAl: 9.19, Al: 0, Ca: 46.151, Mg: 26.725, K: 4.268, PResina: 19.0404, S: 6.3139, Cu: 0.1, Fe: 19.524, Mn: 2.453, Zn: 0.5989, B: 0.1381, MO: 23.706, SB: 77.144, CTC: 86.334, V: 89.36 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 20, pH: 5.4, HAl: 9.68, Al: 0, Ca: 43.016, Mg: 21.6289, K: 3.3145, PResina: 36.5291, S: 5.6753, Cu: 0.178, Fe: 19.858, Mn: 3.099, Zn: 0.7007, B: 0.1764, MO: 24.5905, SB: 67.9594, CTC: 77.6394, V: 87.53 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 30, pH: 5.42, HAl: 9.19, Al: 0, Ca: 37.592, Mg: 15.8335, K: 3.0674, PResina: 16.2003, S: 5.5156, Cu: 0.137, Fe: 36.932, Mn: 1.549, Zn: 0.4169, B: 0.1169, MO: 24.7674, SB: 56.4929, CTC: 65.6829, V: 86.01 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 40, pH: 5.04, HAl: 9.48, Al: 0, Ca: 33.603, Mg: 13.7293, K: 2.5203, PResina: 15.154, S: 9.3471, Cu: 0.137, Fe: 37.944, Mn: 1.168, Zn: 0.1717, B: 0.1722, MO: 24.7674, SB: 49.8526, CTC: 59.3326, V: 84.02 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 10, pH: 5.21, HAl: 9.68, Al: 0, Ca: 38.362, Mg: 16.6258, K: 6.8145, PResina: 28.009, S: 5.2762, Cu: 0.268, Fe: 19.255, Mn: 2.144, Zn: 0.55, B: 0.2104, MO: 26.0057, SB: 61.8023, CTC: 71.4823, V: 86.46 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 20, pH: 5.29, HAl: 9.09, Al: 0, Ca: 37.802, Mg: 14.6772, K: 7.4033, PResina: 28.009, S: 4.8771, Cu: 0.369, Fe: 19.88, Mn: 2.752, Zn: 0.6694, B: 0.2487, MO: 26.0057, SB: 59.8825, CTC: 68.9725, V: 86.82 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 30, pH: 5.43, HAl: 9.58, Al: 0, Ca: 42.022, Mg: 18.8539, K: 7.8549, PResina: 29.8027, S: 6.0744, Cu: 0.282, Fe: 19.718, Mn: 2.157, Zn: 0.4785, B: 0.2827, MO: 25.8288, SB: 68.7308, CTC: 78.3108, V: 87.77 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 40, pH: 5.45, HAl: 9, Al: 0, Ca: 32.527, Mg: 12.6773, K: 5.7689, PResina: 39.6682, S: 7.1121, Cu: 0.266, Fe: 38.114, Mn: 1.451, Zn: 0.1914, B: 0.1211, MO: 24.5905, SB: 50.9732, CTC: 59.9732, V: 84.99 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 10, pH: 5.34, HAl: 9.19, Al: 0, Ca: 41.24, Mg: 23.6357, K: 7.485, PResina: 21.8804, S: 7.6708, Cu: 0.27, Fe: 19.295, Mn: 3.983, Zn: 0.6687, B: 0.1551, MO: 27.5977, SB: 72.3607, CTC: 81.5507, V: 88.73 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 20, pH: 5.24, HAl: 9.09, Al: 0, Ca: 45.9, Mg: 23.1642, K: 8.547, PResina: 36.5291, S: 7.3515, Cu: 0.27, Fe: 19.119, Mn: 4.023, Zn: 0.5689, B: 0.2062, MO: 27.4208, SB: 77.6112, CTC: 86.7012, V: 89.52 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 30, pH: 5.24, HAl: 9.68, Al: 0, Ca: 39.109, Mg: 19.1435, K: 9.789, PResina: 40.2661, S: 7.5112, Cu: 0.31, Fe: 19.661, Mn: 2.12, Zn: 0.4733, B: 0.1636, MO: 23.706, SB: 68.0415, CTC: 77.7215, V: 87.55 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 40, pH: 5.03, HAl: 10.21, Al: 0, Ca: 28.956, Mg: 10.5314, K: 5.8046, PResina: 9.6233, S: 8.7085, Cu: 0.327, Fe: 19.623, Mn: 0.613, Zn: 0.1029, B: 0.1169, MO: 23.706, SB: 45.292, CTC: 55.502, V: 81.6 },
+
+            // Ponto 0 — Comum
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 10, pH: 5.47, HAl: 9.19, Al: 0, Ca: 37.41, Mg: 18.3902, K: 3.7754, PResina: 26.9626, S: 5.0367, Cu: 0.193, Fe: 19.614, Mn: 4.795, Zn: 0.7701, B: 0.1722, MO: 21.937, SB: 59.5756, CTC: 68.7656, V: 86.64 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 20, pH: 5.25, HAl: 9.58, Al: 0, Ca: 45.845, Mg: 21.3118, K: 4.3178, PResina: 24.7205, S: 4.8771, Cu: 0.147, Fe: 19.27, Mn: 2.805, Zn: 0.538, B: 0.1466, MO: 21.2294, SB: 71.4746, CTC: 81.0546, V: 88.18 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 30, pH: 5.12, HAl: 9.48, Al: 0, Ca: 35.07, Mg: 15.0711, K: 3.4928, PResina: 19.3393, S: 7.591, Cu: 0.185, Fe: 19.717, Mn: 2.514, Zn: 0.3373, B: 0.2232, MO: 21.2294, SB: 53.6339, CTC: 63.1139, V: 84.98 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 40, pH: 5.1, HAl: 9.58, Al: 0, Ca: 26.344, Mg: 9.4866, K: 2.7662, PResina: 11.716, S: 15.9722, Cu: 0.13, Fe: 19.533, Mn: 1.161, Zn: 0.1149, B: 0.1424, MO: 21.2294, SB: 38.5968, CTC: 48.1768, V: 80.11 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 10, pH: 5.59, HAl: 9.19, Al: 0, Ca: 48.665, Mg: 19.0746, K: 7.2347, PResina: 42.6577, S: 4.5578, Cu: 0.164, Fe: 19.455, Mn: 4.559, Zn: 0.6312, B: 0.1977, MO: 25.1212, SB: 74.9743, CTC: 84.1643, V: 89.08 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 20, pH: 5.34, HAl: 9.19, Al: 0, Ca: 41.296, Mg: 16.4422, K: 7.6114, PResina: 37.426, S: 4.7972, Cu: 0.19, Fe: 19.709, Mn: 3.261, Zn: 0.579, B: 0.2019, MO: 25.1212, SB: 65.3496, CTC: 74.5396, V: 87.67 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 30, pH: 5.64, HAl: 9.19, Al: 0, Ca: 50.379, Mg: 21.4984, K: 8.97, PResina: 68.3677, S: 7.8305, Cu: 0.246, Fe: 19.787, Mn: 4.076, Zn: 1.0291, B: 0.2019, MO: 25.2981, SB: 80.8474, CTC: 90.0374, V: 89.79 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 40, pH: 5.14, HAl: 9.09, Al: 0, Ca: 41.061, Mg: 17.3847, K: 7.3792, PResina: 42.5082, S: 10.5444, Cu: 0.149, Fe: 19.677, Mn: 1.771, Zn: 0.3717, B: 0.1977, MO: 25.2981, SB: 65.8249, CTC: 74.9149, V: 87.87 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 10, pH: 5.35, HAl: 9, Al: 0, Ca: 44.486, Mg: 25.7052, K: 7.2585, PResina: 42.6577, S: 5.9148, Cu: 0.273, Fe: 19.287, Mn: 4.222, Zn: 0.8957, B: 0.2147, MO: 26.7132, SB: 77.4497, CTC: 86.4497, V: 89.59 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 20, pH: 5.13, HAl: 9.19, Al: 0, Ca: 47.389, Mg: 27.777, K: 8.792, PResina: 42.6577, S: 5.1165, Cu: 0.365, Fe: 19.904, Mn: 4.506, Zn: 0.9861, B: 0.1169, MO: 26.5364, SB: 83.958, CTC: 93.148, V: 90.13 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 30, pH: 5.27, HAl: 9.58, Al: 0, Ca: 36.085, Mg: 14.85, K: 6.7116, PResina: 16.7982, S: 10.6242, Cu: 0.281, Fe: 19.534, Mn: 1.84, Zn: 0.0761, B: 0.1977, MO: 26.7132, SB: 57.6466, CTC: 67.2266, V: 85.75 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 40, pH: 5.17, HAl: 9.48, Al: 0, Ca: 43.18, Mg: 19.5948, K: 7.0234, PResina: 42.3587, S: 5.6753, Cu: 0.347, Fe: 19.951, Mn: 3.34, Zn: 0.6649, B: 0.1509, MO: 26.7132, SB: 69.7982, CTC: 79.2782, V: 88.04 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 10, pH: 5.4, HAl: 9.68, Al: 0, Ca: 42.288, Mg: 21.7833, K: 5.7948, PResina: 20.6846, S: 5.9946, Cu: 0.21, Fe: 19.404, Mn: 2.905, Zn: 0.4162, B: 0.3423, MO: 27.2439, SB: 69.8661, CTC: 79.5461, V: 87.83 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 20, pH: 5.33, HAl: 9.09, Al: 0, Ca: 46.237, Mg: 24.3636, K: 5.2974, PResina: 15.9014, S: 4.7972, Cu: 0.218, Fe: 19.705, Mn: 2.813, Zn: 0.4368, B: 0.2785, MO: 27.2439, SB: 75.898, CTC: 84.988, V: 89.3 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 30, pH: 5.48, HAl: 9, Al: 0, Ca: 43.036, Mg: 18.5813, K: 6.0032, PResina: 36.2302, S: 5.4358, Cu: 0.264, Fe: 19.593, Mn: 1.883, Zn: 0.3092, B: 0.253, MO: 27.2439, SB: 67.6205, CTC: 76.6205, V: 88.25 },
+            { Tipo: "Ponto 0", Data: "2026-07-15", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 40, pH: 5.24, HAl: 9.58, Al: 0, Ca: 32.686, Mg: 12.8368, K: 4.3307, PResina: 29.5037, S: 35.5284, Cu: 0.239, Fe: 19.803, Mn: 0.615, Zn: 0.0813, B: 0.3338, MO: 27.4208, SB: 49.8535, CTC: 59.4335, V: 83.88 },
+
+            // 1° Avaliação — Testemunha
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 10, pH: 5.29, HAl: 9.19, Al: 0, Ca: 32, Mg: 24.09, K: 7.65, PResina: 49.23, S: 10.07, Cu: 0.2, Fe: 69.13, Mn: 5.38, Zn: 1.49, B: 0.23, MO: 24.94, SB: 63.74, CTC: 72.93, V: 87.4 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 20, pH: 5.36, HAl: 9.68, Al: 0, Ca: 31.78, Mg: 22.89, K: 8.47, PResina: 54.62, S: 9.91, Cu: 0.28, Fe: 69.04, Mn: 4.97, Zn: 1.42, B: 0.26, MO: 22.64, SB: 63.14, CTC: 72.82, V: 86.71 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 30, pH: 5.39, HAl: 9.19, Al: 0, Ca: 31.61, Mg: 22.48, K: 7.11, PResina: 51.78, S: 17.01, Cu: 0.24, Fe: 68.75, Mn: 4.63, Zn: 1.31, B: 0.19, MO: 21.41, SB: 61.21, CTC: 70.4, V: 86.95 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Testemunha", Tratamento: "Testemunha", Rep: "—", Profun: 40, pH: 5.32, HAl: 9.28, Al: 0, Ca: 31.25, Mg: 19.76, K: 6.74, PResina: 31, S: 9.27, Cu: 0.18, Fe: 69.14, Mn: 2.69, Zn: 0.64, B: 0.19, MO: 15.92, SB: 57.75, CTC: 67.03, V: 86.15 },
+
+            // 1° Avaliação — Caltec
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 10, pH: 5.29, HAl: 10.1, Al: 0, Ca: 27.6, Mg: 16.71, K: 6.99, PResina: 29.8, S: 5.28, Cu: 0.17, Fe: 42.68, Mn: 2.9, Zn: 0.62, B: 0.13, MO: 14.86, SB: 51.3, CTC: 61.4, V: 83.55 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 20, pH: 5.31, HAl: 10.21, Al: 0, Ca: 26.32, Mg: 15.28, K: 6.86, PResina: 62.54, S: 5.44, Cu: 0.24, Fe: 42.15, Mn: 4.27, Zn: 1.05, B: 0.13, MO: 15.57, SB: 48.45, CTC: 58.66, V: 82.6 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 30, pH: 5.45, HAl: 9.68, Al: 0, Ca: 34.07, Mg: 18.64, K: 7.82, PResina: 113.51, S: 5.04, Cu: 0.25, Fe: 55.74, Mn: 3.71, Zn: 1.05, B: 0.15, MO: 15.92, SB: 60.53, CTC: 70.21, V: 86.21 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R1", Rep: "R1", Profun: 40, pH: 5.42, HAl: 11.22, Al: 0, Ca: 22.03, Mg: 12.76, K: 5.18, PResina: 48.04, S: 5.28, Cu: 0.09, Fe: 54.15, Mn: 0.94, Zn: 0.23, B: 0.2, MO: 13.45, SB: 39.98, CTC: 51.2, V: 78.08 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 10, pH: 5.32, HAl: 9.19, Al: 0, Ca: 32.79, Mg: 24.22, K: 7.6, PResina: 38.77, S: 5.91, Cu: 0.14, Fe: 38.74, Mn: 3.71, Zn: 0.69, B: 0.13, MO: 16.81, SB: 64.61, CTC: 73.8, V: 87.55 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 20, pH: 5.38, HAl: 9.58, Al: 0, Ca: 32.67, Mg: 23.09, K: 6.48, PResina: 29.2, S: 6.07, Cu: 0.13, Fe: 36.59, Mn: 2.77, Zn: 0.69, B: 0.15, MO: 16.81, SB: 62.24, CTC: 71.82, V: 86.66 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 30, pH: 5.29, HAl: 9.09, Al: 0, Ca: 30.59, Mg: 20.19, K: 5.98, PResina: 19.49, S: 6.31, Cu: 0.12, Fe: 37.49, Mn: 2.8, Zn: 0.62, B: 0.17, MO: 17.34, SB: 56.76, CTC: 65.85, V: 86.19 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R2", Rep: "R2", Profun: 40, pH: 5.19, HAl: 11.46, Al: 0, Ca: 25.11, Mg: 15.45, K: 6.8, PResina: 8.13, S: 4.8, Cu: 0.09, Fe: 38.48, Mn: 1.5, Zn: 0.15, B: 0.17, MO: 17.16, SB: 47.36, CTC: 58.82, V: 80.52 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 10, pH: 5.45, HAl: 9.19, Al: 0, Ca: 36.47, Mg: 24.63, K: 7.99, PResina: 52.97, S: 6.71, Cu: 0.25, Fe: 53.14, Mn: 5.07, Zn: 0.62, B: 0.19, MO: 17.16, SB: 69.08, CTC: 78.27, V: 88.26 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 20, pH: 5.44, HAl: 9.19, Al: 0, Ca: 32.31, Mg: 21.53, K: 7.41, PResina: 38.32, S: 6.39, Cu: 0.3, Fe: 51.69, Mn: 5.17, Zn: 0.73, B: 0.23, MO: 19.99, SB: 61.24, CTC: 70.43, V: 86.95 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 30, pH: 5.25, HAl: 10.1, Al: 0, Ca: 31.72, Mg: 22.02, K: 6.25, PResina: 44.15, S: 7.59, Cu: 0.41, Fe: 51.48, Mn: 6.15, Zn: 0.63, B: 0.23, MO: 19.28, SB: 59.99, CTC: 70.09, V: 85.59 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R3", Rep: "R3", Profun: 40, pH: 5.3, HAl: 9.58, Al: 0, Ca: 26.7, Mg: 17.78, K: 5.47, PResina: 21.73, S: 6.39, Cu: 0.3, Fe: 52.49, Mn: 4.68, Zn: 0.2, B: 0.23, MO: 19.28, SB: 49.95, CTC: 59.53, V: 83.91 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 10, pH: 5.46, HAl: 9.19, Al: 0, Ca: 36.24, Mg: 26.12, K: 7.15, PResina: 29.2, S: 9.51, Cu: 0.3, Fe: 50.49, Mn: 6.61, Zn: 0.71, B: 0.21, MO: 22.47, SB: 69.52, CTC: 78.71, V: 88.32 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 20, pH: 5.41, HAl: 9.28, Al: 0, Ca: 37.2, Mg: 26.75, K: 7.89, PResina: 45.35, S: 8.63, Cu: 0.3, Fe: 53.15, Mn: 5.62, Zn: 0.58, B: 0.21, MO: 19.81, SB: 71.84, CTC: 81.12, V: 88.56 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 30, pH: 5.26, HAl: 11.95, Al: 0, Ca: 24.33, Mg: 19.3, K: 8.52, PResina: 37.72, S: 1.68, Cu: 0.34, Fe: 44.94, Mn: 4.51, Zn: 0.36, B: 0.19, MO: 18.05, SB: 52.16, CTC: 64.11, V: 81.36 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Caltec", Tratamento: "Caltec R4", Rep: "R4", Profun: 40, pH: 5.2, HAl: 11.7, Al: 0, Ca: 22.78, Mg: 18.78, K: 6.79, PResina: 34.29, S: 3.12, Cu: 0.3, Fe: 42.01, Mn: 2.87, Zn: 0.26, B: 0.18, MO: 18.05, SB: 48.35, CTC: 60.05, V: 80.52 },
+
+            // 1° Avaliação — Comum
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 10, pH: 5.57, HAl: 9.19, Al: 0, Ca: 39.92, Mg: 31.26, K: 7.64, PResina: 24.57, S: 2.64, Cu: 0.15, Fe: 42.48, Mn: 4.13, Zn: 0.48, B: 0.17, MO: 18.22, SB: 78.83, CTC: 88.02, V: 89.56 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 20, pH: 5.25, HAl: 12.47, Al: 0, Ca: 24.73, Mg: 17.73, K: 6.82, PResina: 28.31, S: 1.76, Cu: 0.16, Fe: 44.87, Mn: 2.61, Zn: 0.39, B: 0.21, MO: 15.92, SB: 49.29, CTC: 61.76, V: 79.81 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 30, pH: 5.26, HAl: 10.87, Al: 0, Ca: 27.6, Mg: 20.02, K: 6.53, PResina: 139.22, S: 1.92, Cu: 0.14, Fe: 40.39, Mn: 1.59, Zn: 0.46, B: 0.22, MO: 16.1, SB: 54.15, CTC: 65.02, V: 83.28 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R1", Rep: "R1", Profun: 40, pH: 5.14, HAl: 11.95, Al: 0, Ca: 20.85, Mg: 13.53, K: 7.81, PResina: 70.31, S: 2.08, Cu: 0.09, Fe: 42.15, Mn: 0.92, Zn: 0.17, B: 0.21, MO: 16.28, SB: 42.19, CTC: 54.14, V: 77.93 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 10, pH: 5.46, HAl: 9.48, Al: 0, Ca: 31.01, Mg: 20.21, K: 8.74, PResina: 46.54, S: 2.64, Cu: 0.18, Fe: 40.59, Mn: 5.4, Zn: 0.92, B: 0.17, MO: 16.28, SB: 59.97, CTC: 69.45, V: 86.35 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 20, pH: 5.54, HAl: 9.28, Al: 0, Ca: 32.44, Mg: 22.44, K: 8.69, PResina: 71.36, S: 3.28, Cu: 0.23, Fe: 39.87, Mn: 4.86, Zn: 1.05, B: 0.22, MO: 20.17, SB: 63.57, CTC: 72.85, V: 87.26 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 30, pH: 5.74, HAl: 9.58, Al: 0, Ca: 31.87, Mg: 19.77, K: 7.51, PResina: 73.6, S: 2.88, Cu: 0.2, Fe: 40.49, Mn: 3.73, Zn: 0.54, B: 0.19, MO: 19.81, SB: 59.16, CTC: 68.74, V: 86.06 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R2", Rep: "R2", Profun: 40, pH: 5.42, HAl: 10.1, Al: 0, Ca: 29.43, Mg: 16.54, K: 6.52, PResina: 56.86, S: 3.04, Cu: 0.24, Fe: 41.49, Mn: 4.24, Zn: 0.92, B: 0.18, MO: 17.87, SB: 52.48, CTC: 62.58, V: 83.86 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 10, pH: 5.46, HAl: 9.79, Al: 0, Ca: 30.81, Mg: 22.03, K: 8.41, PResina: 54.32, S: 2.32, Cu: 0.32, Fe: 47.96, Mn: 6.21, Zn: 1, B: 0.2, MO: 19.99, SB: 61.25, CTC: 71.04, V: 86.22 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 20, pH: 5.49, HAl: 10.53, Al: 0, Ca: 32.11, Mg: 21.72, K: 6.87, PResina: 79.43, S: 4.32, Cu: 0.33, Fe: 43.59, Mn: 5.06, Zn: 0.82, B: 0.2, MO: 21.05, SB: 60.7, CTC: 71.23, V: 85.22 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 30, pH: 5.15, HAl: 12.6, Al: 0, Ca: 20.28, Mg: 12.75, K: 6.71, PResina: 20.54, S: 1.68, Cu: 0.31, Fe: 41.92, Mn: 3.53, Zn: 0.15, B: 0.22, MO: 15.39, SB: 39.75, CTC: 52.35, V: 75.93 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R3", Rep: "R3", Profun: 40, pH: 5.17, HAl: 10.99, Al: 0, Ca: 25.84, Mg: 17.72, K: 7.21, PResina: 46.54, S: 2.88, Cu: 0.31, Fe: 42.49, Mn: 4.39, Zn: 0.36, B: 0.2, MO: 15.39, SB: 50.78, CTC: 61.77, V: 82.21 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 10, pH: 5.41, HAl: 10.53, Al: 0, Ca: 27.23, Mg: 16.37, K: 7.89, PResina: 43.11, S: 3.12, Cu: 0.23, Fe: 46.58, Mn: 4.67, Zn: 0.47, B: 0.19, MO: 15.92, SB: 51.5, CTC: 62.03, V: 83.02 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 20, pH: 5.28, HAl: 12.08, Al: 0, Ca: 23, Mg: 11.81, K: 8.52, PResina: 28.91, S: 2.64, Cu: 0.24, Fe: 47.01, Mn: 4.22, Zn: 0.42, B: 0.22, MO: 15.92, SB: 43.33, CTC: 55.41, V: 78.2 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 30, pH: 5.12, HAl: 11.95, Al: 0, Ca: 21.27, Mg: 12.79, K: 7.51, PResina: 15.3, S: 2.64, Cu: 0.23, Fe: 44.57, Mn: 3.69, Zn: 0.27, B: 0.24, MO: 17.16, SB: 41.57, CTC: 53.52, V: 77.67 },
+            { Tipo: "1° Avaliação", Data: "2026-08-26", Grupo: "Comum", Tratamento: "Comum R4", Rep: "R4", Profun: 40, pH: 5.12, HAl: 12.08, Al: 0, Ca: 19.3, Mg: 12.14, K: 7.26, PResina: 33.99, S: 2.88, Cu: 0.23, Fe: 46.58, Mn: 3.23, Zn: 0.26, B: 0.23, MO: 16.81, SB: 38.7, CTC: 50.78, V: 76.21 }
+        ];
+
+        // Dicionário Oficial de Atributos do Solo
+        const soilAttributes = {
+            'Ca': { 
+                name: 'Cálcio (Ca)', unit: 'mmolc/dm³', min: 0, max: 60, 
+                desc: 'Teor de cálcio trocável acumulado nas camadas do solo.',
+                ranges: { mb: '< 8', b: '9 - 15', m: '16 - 25', a: '26 - 40', ma: '> 41' },
+                valMB: 8, valB: 15, valM: 25, valA: 40
+            },
+            'pH': { 
+                name: 'pH em CaCl2', unit: 'índice', min: 3.5, max: 7.5, 
+                desc: 'Acidez ativa medida em solução de cloreto de cálcio.',
+                ranges: { mb: '< 4,3', b: '4,4 - 5,0', m: '5,1 - 5,5', a: '5,6 - 6,0', ma: '> 6,0' },
+                valMB: 4.3, valB: 5.0, valM: 5.5, valA: 6.0
+            },
+            'V': { 
+                name: 'Saturação por Bases (V%)', unit: '%', min: 0, max: 100, 
+                desc: 'Porcentagem de saturação do complexo sortivo por bases.',
+                ranges: { mb: '< 25', b: '25 - 40', m: '41 - 55', a: '56 - 70', ma: '> 71' },
+                valMB: 25, valB: 40, valM: 55, valA: 70
+            },
+            'MO': { 
+                name: 'Matéria Orgânica (M.O.)', unit: 'g/kg', min: 0, max: 45, 
+                desc: 'Teor de carbono orgânico convertido em matéria orgânica.',
+                ranges: { mb: '< 10', b: '11 - 15', m: '16 - 22', a: '23 - 30', ma: '> 31' },
+                valMB: 10, valB: 15, valM: 22, valA: 30
+            },
+            'PResina': { 
+                name: 'Fósforo (P resina)', unit: 'mg/dm³', min: 0, max: 65, 
+                desc: 'Fósforo assimilável extraído por resina trocadora de íons.',
+                ranges: { mb: '0 - 7', b: '8 - 15', m: '15 - 25', a: '26 - 40', ma: '> 41' },
+                valMB: 7, valB: 15, valM: 25, valA: 40
+            },
+            'S': { 
+                name: 'Enxofre (S)', unit: 'mmolc/dm³', min: 0, max: 40, 
+                desc: 'Enxofre disponível sulfato no perfil.',
+                ranges: { mb: '< 5', b: '6 - 10', m: '11 - 15', a: '15 - 30', ma: '> 31' },
+                valMB: 5, valB: 10, valM: 15, valA: 30
+            },
+            'K': { 
+                name: 'Potássio (K)', unit: 'mmolc/dm³', min: 0, max: 10, 
+                desc: 'Teor trocável de potássio disponível no perfil.',
+                ranges: { mb: '0 - 0,7', b: '0,8 - 1,5', m: '1,6 - 2,4', a: '2,5-5,0', ma: '> 5,1' },
+                valMB: 0.7, valB: 1.5, valM: 2.4, valA: 5.0
+            },
+            'Mg': { 
+                name: 'Magnésio (Mg)', unit: 'mmolc/dm³', min: 0, max: 30, 
+                desc: 'Teor de magnésio trocável disponível no complexo sortivo.',
+                ranges: { mb: '< 5', b: '6 - 8', m: '9 - 12', a: '13 - 16', ma: '> 17' },
+                valMB: 5, valB: 8, valM: 12, valA: 16
+            },
+            'B': { 
+                name: 'Boro (B)', unit: 'mg/dm³', min: 0, max: 1.5, 
+                desc: 'Boro disponível extraído por água quente.',
+                ranges: { mb: '< 0,1', b: '0,2 - 0,3', m: '0,4 - 0,6', a: '0,6 - 1,0', ma: '> 1,0' },
+                valMB: 0.1, valB: 0.3, valM: 0.6, valA: 1.0
+            },
+            'Cu': { 
+                name: 'Cobre (Cu)', unit: 'mg/dm³', min: 0, max: 2.0, 
+                desc: 'Cobre disponível no solo.',
+                ranges: { mb: '< 0,2', b: '0,3 - 0,5', m: '0,6 - 0,8', a: '0,9 - 1,5', ma: '> 1,6' },
+                valMB: 0.2, valB: 0.5, valM: 0.8, valA: 1.5
+            },
+            'Fe': { 
+                name: 'Ferro (Fe)', unit: 'mg/dm³', min: 0, max: 50, 
+                desc: 'Ferro extraível por DTPA.',
+                ranges: { mb: '< 4', b: '5 - 8', m: '9 - 12', a: '13 - 30', ma: '> 31' },
+                valMB: 4, valB: 8, valM: 12, valA: 30
+            },
+            'Mn': { 
+                name: 'Manganês (Mn)', unit: 'mg/dm³', min: 0, max: 15, 
+                desc: 'Manganês disponível no perfil.',
+                ranges: { mb: '< 1,0', b: '1,1 - 2,5', m: '2,6 - 5,0', a: '5,1 - 10,0', ma: '> 11,0' },
+                valMB: 1.0, valB: 2.5, valM: 5.0, valA: 10.0
+            },
+            'Zn': { 
+                name: 'Zinco (Zn)', unit: 'mg/dm³', min: 0, max: 4.0, 
+                desc: 'Zinco disponível extraído por DTPA.',
+                ranges: { mb: '< 0,3', b: '0,4 - 0,8', m: '0,9 - 1,2', a: '1,3 - 3,0', ma: '> 3,1' },
+                valMB: 0.3, valB: 0.8, valM: 1.2, valA: 3.0
+            },
+            'HAl': { name: 'Acidez Potencial (H+Al)', unit: 'mmolc/dm³', min: 0, max: 20, desc: 'H+Al trocável.', ranges: { mb: '-', b: '-', m: '-', a: '-', ma: '-' }, valMB: 5, valB: 9, valM: 12, valA: 15 },
+            'Al': { name: 'Alumínio (Al)', unit: 'mmolc/dm³', min: 0, max: 5, desc: 'Alumínio trocável.', ranges: { mb: '-', b: '-', m: '-', a: '-', ma: '-' }, valMB: 0.2, valB: 0.5, valM: 1.0, valA: 2.0 },
+            'SB': { name: 'Soma de Bases (SB)', unit: 'mmolc/dm³', min: 0, max: 100, desc: 'Soma de bases trocáveis (Ca+Mg+K).', ranges: { mb: '-', b: '-', m: '-', a: '-', ma: '-' }, valMB: 15, valB: 30, valM: 50, valA: 70 },
+            'CTC': { name: 'Capacidade de Troca (CTC)', unit: 'mmolc/dm³', min: 0, max: 120, desc: 'CTC a pH 7.0.', ranges: { mb: '-', b: '-', m: '-', a: '-', ma: '-' }, valMB: 30, valB: 50, valM: 70, valA: 90 }
+        };
+
+        /* =====================================================================
+           1. CAMADA ESTATÍSTICA
+           ===================================================================== */
+
+        // Épocas e profundidades derivadas da própria base (sem listas fixas)
+        const EPOCHS = [...new Set(rawData.map(d => d.Tipo))];
+        const DEPTHS = [...new Set(rawData.map(d => d.Profun))].sort((a, b) => a - b);
+        const EPOCH_DATE = {};
+        rawData.forEach(d => { if (!EPOCH_DATE[d.Tipo]) EPOCH_DATE[d.Tipo] = d.Data; });
+
+        // Agrupamentos disponíveis para o cálculo das médias
+        const GROUPINGS = {
+            'Tipo|Grupo':     { label: 'Tipo × Grupo',       keys: ['Tipo', 'Grupo'] },
+            'Grupo':          { label: 'Grupo',                   keys: ['Grupo'] },
+            'Tipo':           { label: 'Tipo (Época)',            keys: ['Tipo'] },
+            'Tratamento':      { label: 'Tratamento (repetição)', keys: ['Tratamento'] },
+            'Tipo|Tratamento': { label: 'Tipo × Tratamento',   keys: ['Tipo', 'Tratamento'] }
+        };
+        const KEY_SEP = ' • ';
+        const keyOf = (row, keys) => keys.map(k => row[k]).join(KEY_SEP);
+
+        // Formatação numérica pt-BR
+        function nf(v, dec = 2) {
+            if (v === null || v === undefined || !isFinite(v)) return '—';
+            return v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        }
+
+        // Só valores numéricos válidos entram na média (ausentes são descartados, não viram zero)
+        function valuesOf(rows, attr) {
+            return rows.map(r => r[attr]).filter(v => typeof v === 'number' && isFinite(v));
+        }
+        function meanOf(v) { return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN; }
+        function varOf(v) {                       // variância amostral (n - 1)
+            if (v.length < 2) return 0;
+            const m = meanOf(v);
+            return v.reduce((a, b) => a + (b - m) * (b - m), 0) / (v.length - 1);
+        }
+        function summarize(v) {
+            const n = v.length, m = meanOf(v), sd = Math.sqrt(varOf(v));
+            return {
+                n, mean: m, sd,
+                sem: n > 1 ? sd / Math.sqrt(n) : 0,
+                min: n ? Math.min(...v) : NaN,
+                max: n ? Math.max(...v) : NaN,
+                cv: (n && m) ? Math.abs(sd / m) * 100 : NaN
+            };
+        }
+
+        // --- Amplitude studentizada q(0,05; k; gl) — tabela padrão de Tukey ---
+        const Q_DF = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 24, 30, 40, 60, 120, 1e9];
+        const Q_TABLE = {
+            2:  [17.97, 6.08, 4.50, 3.93, 3.64, 3.46, 3.34, 3.26, 3.20, 3.15, 3.11, 3.08, 3.06, 3.03, 3.01, 3.00, 2.98, 2.97, 2.96, 2.95, 2.92, 2.89, 2.86, 2.83, 2.80, 2.77],
+            3:  [26.98, 8.33, 5.91, 5.04, 4.60, 4.34, 4.16, 4.04, 3.95, 3.88, 3.82, 3.77, 3.73, 3.70, 3.67, 3.65, 3.63, 3.61, 3.59, 3.58, 3.53, 3.49, 3.44, 3.40, 3.36, 3.31],
+            4:  [32.82, 9.80, 6.82, 5.76, 5.22, 4.90, 4.68, 4.53, 4.41, 4.33, 4.26, 4.20, 4.15, 4.11, 4.08, 4.05, 4.02, 4.00, 3.98, 3.96, 3.90, 3.85, 3.79, 3.74, 3.68, 3.63],
+            5:  [37.08, 10.88, 7.50, 6.29, 5.67, 5.30, 5.06, 4.89, 4.76, 4.65, 4.57, 4.51, 4.45, 4.41, 4.37, 4.33, 4.30, 4.28, 4.25, 4.23, 4.17, 4.10, 4.04, 3.98, 3.92, 3.86],
+            6:  [40.41, 11.74, 8.04, 6.71, 6.03, 5.63, 5.36, 5.17, 5.02, 4.91, 4.82, 4.75, 4.69, 4.64, 4.59, 4.56, 4.52, 4.49, 4.47, 4.45, 4.37, 4.30, 4.23, 4.16, 4.10, 4.03],
+            7:  [43.12, 12.44, 8.48, 7.05, 6.33, 5.90, 5.61, 5.40, 5.24, 5.12, 5.03, 4.95, 4.88, 4.83, 4.78, 4.74, 4.70, 4.67, 4.65, 4.62, 4.54, 4.46, 4.39, 4.31, 4.24, 4.17],
+            8:  [45.40, 13.03, 8.85, 7.35, 6.58, 6.12, 5.82, 5.60, 5.43, 5.30, 5.20, 5.12, 5.05, 4.99, 4.94, 4.90, 4.86, 4.82, 4.79, 4.77, 4.68, 4.60, 4.52, 4.44, 4.36, 4.29],
+            9:  [47.36, 13.54, 9.18, 7.60, 6.80, 6.32, 6.00, 5.77, 5.59, 5.46, 5.35, 5.27, 5.19, 5.13, 5.08, 5.03, 4.99, 4.96, 4.92, 4.90, 4.81, 4.72, 4.63, 4.55, 4.47, 4.39],
+            10: [49.07, 13.99, 9.46, 7.83, 6.99, 6.49, 6.16, 5.92, 5.74, 5.60, 5.49, 5.39, 5.32, 5.25, 5.20, 5.15, 5.11, 5.07, 5.04, 5.01, 4.92, 4.82, 4.73, 4.65, 4.56, 4.47]
+        };
+        function qCrit(k, df) {
+            if (k < 2 || df < 1) return NaN;
+            const col = Q_TABLE[Math.min(Math.max(k, 2), 10)];
+            let i = Q_DF.findIndex(d => d >= df);
+            if (i === -1) i = Q_DF.length - 1;
+            if (i === 0 || Q_DF[i] === df) return col[i];
+            const d0 = Q_DF[i - 1], d1 = Q_DF[i];          // interpolação linear em 1/gl
+            const t = (1 / df - 1 / d1) / (1 / d0 - 1 / d1);
+            return col[i] + t * (col[i - 1] - col[i]);
+        }
+
+        // --- Valor-p da distribuição F via função beta incompleta regularizada ---
+        function gammaLn(x) {
+            const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+                       -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+            let y = x, tmp = x + 5.5;
+            tmp -= (x + 0.5) * Math.log(tmp);
+            let ser = 1.000000000190015;
+            for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+            return -tmp + Math.log(2.5066282746310005 * ser / x);
+        }
+        function betacf(a, b, x) {
+            const FPMIN = 1e-30;
+            const qab = a + b, qap = a + 1, qam = a - 1;
+            let c = 1, d = 1 - qab * x / qap;
+            if (Math.abs(d) < FPMIN) d = FPMIN;
+            d = 1 / d;
+            let h = d;
+            for (let m = 1; m <= 300; m++) {
+                const m2 = 2 * m;
+                let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+                d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+                c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+                d = 1 / d; h *= d * c;
+                aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+                d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+                c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+                d = 1 / d;
+                const del = d * c;
+                h *= del;
+                if (Math.abs(del - 1) < 3e-12) break;
+            }
+            return h;
+        }
+        function betaInc(a, b, x) {
+            if (x <= 0) return 0;
+            if (x >= 1) return 1;
+            const bt = Math.exp(gammaLn(a + b) - gammaLn(a) - gammaLn(b) +
+                                a * Math.log(x) + b * Math.log(1 - x));
+            return x < (a + 1) / (a + b + 2)
+                ? bt * betacf(a, b, x) / a
+                : 1 - bt * betacf(b, a, 1 - x) / b;
+        }
+        function pValueF(F, d1, d2) {
+            if (!isFinite(F) || F <= 0 || d1 < 1 || d2 < 1) return NaN;
+            return betaInc(d2 / 2, d1 / 2, d2 / (d2 + d1 * F));
+        }
+
+        // --- ANOVA de uma via: é ela que sustenta o teste de Tukey ---
+        function oneWayAnova(groups) {
+            const valid = groups.filter(g => g.values.length > 0);
+            const all = valid.flatMap(g => g.values);
+            const k = valid.length, N = all.length, grand = meanOf(all);
+            let ssB = 0, ssW = 0;
+            valid.forEach(g => {
+                const m = meanOf(g.values);
+                ssB += g.values.length * (m - grand) * (m - grand);
+                g.values.forEach(v => { ssW += (v - m) * (v - m); });
+            });
+            const dfB = k - 1, dfW = N - k;
+            const msB = dfB > 0 ? ssB / dfB : NaN;
+            const msW = dfW > 0 ? ssW / dfW : NaN;
+            const F = (dfW > 0 && msW > 0) ? msB / msW : NaN;
+            return {
+                k, N, grand, ssB, ssW, dfB, dfW, msB, msW, F,
+                p: pValueF(F, dfB, dfW),
+                cv: (msW > 0 && grand) ? Math.abs(Math.sqrt(msW) / grand) * 100 : NaN
+            };
+        }
+
+        // Cliques maximais (Bron-Kerbosch com pivô) — base das letras do Tukey
+        function maximalCliques(k, adj) {
+            const cliques = [];
+            const expand = (R, P, X) => {
+                if (!P.size && !X.size) {
+                    if (R.size) cliques.push([...R].sort((a, b) => a - b));
+                    return;
+                }
+                let pivot = -1, best = -1;
+                for (const u of [...P, ...X]) {
+                    let c = 0;
+                    for (const v of P) if (adj[u].has(v)) c++;
+                    if (c > best) { best = c; pivot = u; }
+                }
+                for (const v of [...P].filter(u => !adj[pivot].has(u))) {
+                    expand(new Set([...R, v]),
+                           new Set([...P].filter(u => adj[v].has(u))),
+                           new Set([...X].filter(u => adj[v].has(u))));
+                    P.delete(v); X.add(v);
+                }
+            };
+            expand(new Set(), new Set(Array.from({ length: k }, (_, i) => i)), new Set());
+            return cliques;
+        }
+
+        // --- Tukey HSD / Tukey-Kramer + letras (compact letter display) ---
+        function tukeyLetters(ordered, msW, dfW) {
+            const k = ordered.length;
+            const out = { letters: {}, hsd: NaN, q: NaN };
+            if (k === 0) return out;
+            if (k === 1) { out.letters[ordered[0].key] = 'a'; return out; }
+
+            const q = qCrit(k, dfW);
+            out.q = q;
+            const usable = isFinite(q) && isFinite(msW) && msW > 0 && dfW >= 1;
+
+            // DMS de referência, com n harmônico, para exibição
+            if (usable) {
+                const nh = k / ordered.reduce((s, g) => s + 1 / g.n, 0);
+                out.hsd = q * Math.sqrt(msW / nh);
+            }
+
+            // Tukey-Kramer: vale também quando os grupos têm n diferentes
+            const notDiff = (i, j) => {
+                if (!usable) return true;
+                const dms = q * Math.sqrt((msW / 2) * (1 / ordered[i].n + 1 / ordered[j].n));
+                return Math.abs(ordered[i].mean - ordered[j].mean) <= dms;
+            };
+
+            // Grafo de "não diferem": cada letra é um conjunto maximal de médias
+            // mutuamente não diferentes (clique maximal), e não um bloco arbitrário.
+            const adj = Array.from({ length: k }, () => new Set());
+            for (let i = 0; i < k; i++) {
+                for (let j = i + 1; j < k; j++) {
+                    if (notDiff(i, j)) { adj[i].add(j); adj[j].add(i); }
+                }
+            }
+            const keep = maximalCliques(k, adj)
+                .sort((A, B) => A[0] - B[0] || B.length - A.length);
+
+            keep.forEach((S, idx) => {
+                const ch = String.fromCharCode(97 + idx);
+                S.forEach(i => {
+                    const key = ordered[i].key;
+                    out.letters[key] = (out.letters[key] || '') + ch;
+                });
+            });
+            Object.keys(out.letters).forEach(kk => {
+                out.letters[kk] = out.letters[kk].split('').sort().join('');
+            });
+            return out;
+        }
+
+        /* =====================================================================
+           2. ESTADO E INICIALIZAÇÃO
+           ===================================================================== */
+
+        let tukeyChartInstance = null;
+        let evolutionChartInstance = null;
+        let resizeTimer = null;
+
+        function initApp() {
+            // Agrupamento das médias — padrão Tipo × Grupo
+            const groupSelect = document.getElementById('groupBySelect');
+            groupSelect.innerHTML = '';
+            Object.entries(GROUPINGS).forEach(([value, cfg]) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.text = cfg.label;
+                groupSelect.appendChild(opt);
+            });
+            groupSelect.value = 'Tipo|Grupo';
+
+            // Épocas
+            const tipoSelect = document.getElementById('tipoSelect');
+            tipoSelect.innerHTML = '<option value="Todos">Todas as Épocas (Geral)</option>';
+            EPOCHS.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.text = t;
+                tipoSelect.appendChild(opt);
+            });
+            tipoSelect.value = 'Todos';
+
+            // Profundidades — "Perfil completo" agrega as camadas; uma camada isola a análise
+            const depthSelect = document.getElementById('depthSelect');
+            depthSelect.innerHTML = '<option value="Todas">Perfil completo (todas as camadas)</option>';
+            DEPTHS.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = String(d);
+                opt.text = `${d} cm`;
+                depthSelect.appendChild(opt);
+            });
+            depthSelect.value = 'Todas';
+
+            // Atributos
+            const attrSelect = document.getElementById('attributeSelect');
+            attrSelect.innerHTML = '';
+            for (const [key, val] of Object.entries(soilAttributes)) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.text = val.name;
+                attrSelect.appendChild(opt);
+            }
+            attrSelect.value = 'Ca';
+
+            groupSelect.addEventListener('change', updateDashboard);
+            tipoSelect.addEventListener('change', updateDashboard);
+            depthSelect.addEventListener('change', updateDashboard);
+            attrSelect.addEventListener('change', updateDashboard);
+
+            document.getElementById('recordCountBadge').innerHTML =
+                `<i class="fa-solid fa-circle text-[8px] text-emerald-400 mr-1.5 animate-pulse"></i> ${rawData.length} Registros do Experimento`;
+
+            renderTimeline();
+            updateDashboard();
+
+            // Redesenho apenas após o fim do redimensionamento
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(updateDashboard, 200);
+            });
+        }
+
+        // Linha do tempo e rodapé saem das épocas realmente presentes na base
+        function renderTimeline() {
+            const br = iso => iso.split('-').reverse().join('/');
+            const last = EPOCHS[EPOCHS.length - 1];
+
+            document.getElementById('timelineTrack').innerHTML = EPOCHS.map((ep, i) => {
+                const atual = i === EPOCHS.length - 1;
+                const sep = i > 0 ? '<i class="fa-solid fa-chevron-right text-[10px] text-emerald-600"></i>' : '';
+                return sep + `
+                    <div class="flex items-center space-x-1.5 ${atual ? 'ring-2 ring-amber-400/60 bg-emerald-900/80 px-2 py-0.5 rounded-lg' : 'opacity-90'}">
+                        <span class="w-5 h-5 rounded-full ${atual ? 'bg-amber-400' : 'bg-emerald-500'} text-slate-950 font-bold flex items-center justify-center text-[10px]">
+                            ${atual ? String(i + 1) : '<i class="fa-solid fa-check"></i>'}
+                        </span>
+                        <span class="font-bold ${atual ? 'text-amber-200' : 'text-white'}">${ep}</span>
+                        <span class="text-[10px] ${atual ? 'text-amber-300' : 'text-emerald-400'}">(${br(EPOCH_DATE[ep])}${atual ? ' - Atual' : ''})</span>
+                    </div>`;
+            }).join('');
+
+            document.getElementById('stageBadge').innerHTML =
+                `<i class="fa-solid fa-spinner animate-spin text-[10px] mr-1.5 text-amber-300"></i> ${EPOCHS.length} amostragens registradas`;
+            document.getElementById('footerUpdate').innerHTML =
+                `<i class="fa-solid fa-sync mr-1"></i> Última amostragem: ${br(EPOCH_DATE[last])} (${last})`;
+        }
+
+        function getAgronomicColor(val, attr) {
+            if (!isFinite(val)) return '#475569';    // sem dado
+            if (val <= attr.valMB) return '#ec4899'; // Muito Baixo
+            if (val <= attr.valB) return '#ef4444';  // Baixo
+            if (val <= attr.valM) return '#facc15';  // Médio
+            if (val <= attr.valA) return '#22c55e';  // Alto
+            return '#06b6d4';                        // Muito Alto
+        }
+
+        /* =====================================================================
+           3. ORQUESTRAÇÃO
+           ===================================================================== */
+
+        function updateDashboard() {
+            const groupMode = document.getElementById('groupBySelect').value;
+            const selectedTipo = document.getElementById('tipoSelect').value;
+            const selectedDepth = document.getElementById('depthSelect').value;
+            const selectedAttr = document.getElementById('attributeSelect').value;
+            const attr = soilAttributes[selectedAttr];
+            const grouping = GROUPINGS[groupMode];
+
+            // Painel de interpretação agronômica
+            document.getElementById('attrTitleName').innerText = attr.name;
+            document.getElementById('attrDescription').innerText = attr.desc;
+            document.getElementById('attrMinVal').innerText = `Mín: ${attr.min}`;
+            document.getElementById('attrMaxVal').innerText = `Máx: ${attr.max}`;
+            document.getElementById('attrUnit').innerText = attr.unit;
+            document.getElementById('clsMB').innerText = attr.ranges.mb;
+            document.getElementById('clsB').innerText = attr.ranges.b;
+            document.getElementById('clsM').innerText = attr.ranges.m;
+            document.getElementById('clsA').innerText = attr.ranges.a;
+            document.getElementById('clsMA').innerText = attr.ranges.ma;
+
+            document.getElementById('activeGroupLabel').innerText = `Agrupado por: ${grouping.label}`;
+            document.getElementById('activeTipoLabel').innerText = `Época: ${selectedTipo === 'Todos' ? 'Todas' : selectedTipo}`;
+            document.getElementById('activeDepthLabel').innerText =
+                selectedDepth === 'Todas' ? 'Camada: perfil completo' : `Camada: ${selectedDepth} cm`;
+            document.getElementById('thGroupHeader').innerText = grouping.label;
+
+            updateKPICards(selectedAttr, attr);
+
+            // Recorte por época (alimenta o mapa de calor e a ANOVA por camada, que
+            // precisam de todas as profundidades) e, sobre ele, o recorte por camada.
+            const epochData = selectedTipo === 'Todos'
+                ? rawData
+                : rawData.filter(d => d.Tipo === selectedTipo);
+            const depthNum = selectedDepth === 'Todas' ? null : Number(selectedDepth);
+            const filteredData = depthNum === null
+                ? epochData
+                : epochData.filter(d => d.Profun === depthNum);
+
+            // Chaves de agrupamento na ordem em que aparecem na base
+            const groupKeys = [];
+            epochData.forEach(r => {
+                const k = keyOf(r, grouping.keys);
+                if (k && !groupKeys.includes(k)) groupKeys.push(k);
+            });
+
+            // Médias por grupo × profundidade (mapa de calor)
+            const datasetByGroup = {};
+            groupKeys.forEach(gk => {
+                datasetByGroup[gk] = DEPTHS.map(d => {
+                    const rows = epochData.filter(r => keyOf(r, grouping.keys) === gk && r.Profun === d);
+                    const s = summarize(valuesOf(rows, selectedAttr));
+                    return { depth: d, value: s.mean, n: s.n };
+                });
+            });
+            renderDepthHeatmap(DEPTHS, datasetByGroup, attr, depthNum);
+
+            // Médias do perfil + ANOVA + Tukey
+            const result = computeGroupStats(filteredData, groupKeys, grouping.keys, selectedAttr);
+            renderTukeyResults(result, attr, depthNum);
+
+            // ANOVA independente por camada
+            renderDepthAnova(epochData, groupKeys, grouping, selectedAttr, attr, selectedTipo, depthNum);
+
+            // Tabela cruzada Tipo × Grupo (base completa, independe do filtro de época)
+            renderPivotTable(selectedAttr, attr, depthNum);
+
+            renderEvolutionChart(grouping, selectedAttr, attr, depthNum);
+        }
+
+        // Média do perfil de cada grupo = média de todas as observações do grupo
+        function computeGroupStats(filteredData, groupKeys, keys, selectedAttr) {
+            const groups = groupKeys.map(gk => ({
+                key: gk,
+                values: valuesOf(filteredData.filter(r => keyOf(r, keys) === gk), selectedAttr)
+            }));
+
+            const anova = oneWayAnova(groups);
+            const ordered = groups
+                .map(g => ({ key: g.key, ...summarize(g.values) }))
+                .filter(g => g.n > 0)
+                .sort((a, b) => b.mean - a.mean);
+
+            const tukey = tukeyLetters(ordered, anova.msW, anova.dfW);
+            ordered.forEach(g => { g.letter = tukey.letters[g.key] || '—'; });
+
+            return { rows: ordered, anova, hsd: tukey.hsd, q: tukey.q };
+        }
+
+        /* =====================================================================
+           4. KPIs
+           ===================================================================== */
+
+        function deltaBadge(delta, suffix, dec = 2) {
+            if (!isFinite(delta)) return '<span class="text-slate-500">sem base de comparação</span>';
+            const up = delta > 0, flat = Math.abs(delta) < 1e-9;
+            const cls = flat ? 'text-slate-500' : (up ? 'text-emerald-600' : 'text-red-600');
+            const icon = flat ? 'fa-minus' : (up ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down');
+            const sign = up ? '+' : '';
+            return `<span class="${cls} font-bold flex items-center"><i class="fa-solid ${icon} mr-1"></i> ${sign}${nf(delta, dec)} ${suffix}</span>`;
+        }
+
+        function updateKPICards(attrKey, attr) {
+            const baseEpoch = EPOCHS[0];
+            const lastEpoch = EPOCHS[EPOCHS.length - 1];
+            const isRef = d => d.Grupo === 'Caltec';
+
+            const base = rawData.filter(d => isRef(d) && d.Tipo === baseEpoch);
+            const curr = rawData.filter(d => isRef(d) && d.Tipo === lastEpoch);
+
+            // KPI 1 — acompanha o atributo selecionado
+            const mBase = meanOf(valuesOf(base, attrKey));
+            const mCurr = meanOf(valuesOf(curr, attrKey));
+            document.getElementById('kpiAttrLabel').innerText = `Média ${attr.name} — Caltec`;
+            document.getElementById('kpiCaVal').innerHTML =
+                `${nf(mCurr)} <span class="text-xs font-normal text-slate-500">${attr.unit}</span>`;
+            document.getElementById('kpiCaDelta').innerHTML = (isFinite(mBase) && mBase !== 0)
+                ? deltaBadge((mCurr - mBase) / Math.abs(mBase) * 100, `% vs ${baseEpoch}`, 1)
+                : '<span class="text-slate-500">sem base de comparação</span>';
+
+            // KPI 2 — V%: a diferença é em pontos percentuais, não em %
+            const vBase = meanOf(valuesOf(base, 'V')), vCurr = meanOf(valuesOf(curr, 'V'));
+            document.getElementById('kpiVVal').innerText = `${nf(vCurr)}%`;
+            document.getElementById('kpiVDelta').innerHTML = deltaBadge(vCurr - vBase, `p.p. vs ${baseEpoch}`, 2);
+
+            // KPI 3 — pH em unidades
+            const phBase = meanOf(valuesOf(base, 'pH')), phCurr = meanOf(valuesOf(curr, 'pH'));
+            document.getElementById('kpiPhVal').innerText = nf(phCurr);
+            document.getElementById('kpiPhDelta').innerHTML = deltaBadge(phCurr - phBase, 'un. de pH', 2);
+
+            // KPI 4 — integridade medida, não assumida
+            const validAttr = valuesOf(rawData, attrKey).length;
+            document.getElementById('kpiTotalSamples').innerText = rawData.length;
+            document.getElementById('kpiSamplesNote').innerHTML =
+                `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> ${validAttr}/${rawData.length} leituras válidas de ${attrKey}`;
+        }
+
+        /* =====================================================================
+           5. RENDERIZAÇÃO
+           ===================================================================== */
+
+        // Uma ANOVA + Tukey independentes para cada profundidade. Aqui o n de cada
+        // grupo é o número de repetições (R1-R4) daquela camada, que é a unidade
+        // experimental de verdade — sem misturar camadas no mesmo resíduo.
+        function renderDepthAnova(epochData, groupKeys, grouping, selectedAttr, attr, selectedTipo, selectedDepth) {
+            const head = document.getElementById('depthAnovaHead');
+            const body = document.getElementById('depthAnovaBody');
+
+            // Este painel mostra sempre todas as camadas: o filtro de profundidade
+            // apenas destaca a linha correspondente.
+            document.getElementById('depthAnovaScope').innerText =
+                `${attr.name} • ${grouping.label} • ${selectedTipo === 'Todos' ? 'todas as épocas' : selectedTipo}`;
+
+            head.innerHTML = `<tr>
+                <th class="p-2.5 rounded-l-lg text-left">Camada</th>
+                ${groupKeys.map(gk => `<th class="p-2.5 text-center">${gk.split(KEY_SEP).join('<span class="block font-normal normal-case text-[9px] text-slate-500">') }</th>`).join('')}
+                <th class="p-2.5 text-center">F</th>
+                <th class="p-2.5 text-center">p</th>
+                <th class="p-2.5 text-center">DMS</th>
+                <th class="p-2.5 text-center">CV</th>
+                <th class="p-2.5 rounded-r-lg text-center">GL res.</th>
+            </tr>`;
+
+            body.innerHTML = DEPTHS.map(d => {
+                const groups = groupKeys.map(gk => ({
+                    key: gk,
+                    values: valuesOf(epochData.filter(r => keyOf(r, grouping.keys) === gk && r.Profun === d), selectedAttr)
+                })).filter(g => g.values.length > 0);
+
+                const anova = oneWayAnova(groups);
+                const ordered = groups
+                    .map(g => ({ key: g.key, ...summarize(g.values) }))
+                    .sort((a, b) => b.mean - a.mean);
+                const tukey = tukeyLetters(ordered, anova.msW, anova.dfW);
+                const byKey = Object.fromEntries(ordered.map(o => [o.key, o]));
+
+                const signif = isFinite(anova.p) && anova.p <= 0.05;
+                const pTxt = isFinite(anova.p)
+                    ? (anova.p < 0.001 ? '&lt; 0,001' : nf(anova.p, 4))
+                    : '—';
+
+                const cells = groupKeys.map(gk => {
+                    const s = byKey[gk];
+                    if (!s) return '<td class="p-2.5 text-center text-slate-300">—</td>';
+                    const letra = tukey.letters[gk] || '—';
+                    return `<td class="p-2.5 text-center">
+                        <span class="font-semibold text-slate-800">${nf(s.mean)}</span>
+                        <span class="${signif ? 'text-emerald-800 bg-emerald-100' : 'text-slate-600 bg-slate-100'} font-bold px-1.5 rounded ml-1">${letra}</span>
+                        <span class="block text-[10px] text-slate-500">n=${s.n}</span>
+                    </td>`;
+                }).join('');
+
+                const ativa = d === selectedDepth;
+                return `<tr class="${ativa ? 'bg-emerald-50 ring-1 ring-emerald-200' : 'hover:bg-slate-50'} transition">
+                    <td class="p-2.5 font-bold ${ativa ? 'text-emerald-900' : 'text-slate-800'}">${d} cm${ativa ? ' <i class="fa-solid fa-caret-left text-emerald-500"></i>' : ''}</td>
+                    ${cells}
+                    <td class="p-2.5 text-center text-slate-700">${nf(anova.F)}</td>
+                    <td class="p-2.5 text-center font-semibold ${signif ? 'text-emerald-700' : 'text-amber-700'}">${pTxt}${signif ? '' : ' <span class="text-[9px] font-normal">ns</span>'}</td>
+                    <td class="p-2.5 text-center text-slate-600">${nf(tukey.hsd, 3)}</td>
+                    <td class="p-2.5 text-center text-slate-600">${nf(anova.cv, 1)}%</td>
+                    <td class="p-2.5 text-center text-slate-500">${anova.dfW}</td>
+                </tr>`;
+            }).join('');
+
+            // Avisa quando algum grupo não tem repetição suficiente naquela camada
+            const semRep = groupKeys.filter(gk => DEPTHS.some(d =>
+                valuesOf(epochData.filter(r => keyOf(r, grouping.keys) === gk && r.Profun === d), selectedAttr).length < 2));
+            document.getElementById('depthAnovaWarning').innerHTML = semRep.length
+                ? `&#9888; Sem repetição verdadeira em pelo menos uma camada: ${semRep.map(s => s.split(KEY_SEP).join(' › ')).join('; ')}. `
+                  + 'Esses grupos não contribuem para o erro experimental e suas comparações têm DMS inflada.'
+                : '';
+        }
+
+        function renderDepthHeatmap(depths, dataset, attr, selectedDepth) {
+            const canvas = document.getElementById('depthHeatmapCanvas');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const width = rect.width, height = rect.height;
+            ctx.clearRect(0, 0, width, height);
+
+            const groups = Object.keys(dataset);
+            if (!groups.length) return;
+
+            const headerH = 40;
+            const colWidth = width / groups.length;
+            const rowHeight = (height - headerH - 4) / depths.length;
+            const dense = colWidth < 110;
+
+            groups.forEach((grp, colIndex) => {
+                const startX = colIndex * colWidth;
+                const cx = startX + colWidth / 2;
+
+                // Cabeçalho: cada nível da chave em uma linha
+                ctx.textAlign = 'center';
+                const parts = grp.split(KEY_SEP);
+                parts.forEach((part, li) => {
+                    const secondary = li === 0 && parts.length > 1;
+                    ctx.fillStyle = secondary ? '#a7f3d0' : '#ffffff';
+                    ctx.font = `${secondary ? '' : 'bold '}${dense ? 9 : 10}px Inter, sans-serif`;
+                    const maxChars = Math.max(6, Math.floor(colWidth / (dense ? 5 : 5.6)));
+                    const txt = part.length > maxChars ? part.substring(0, maxChars - 1) + '…' : part;
+                    ctx.fillText(txt, cx, 14 + li * 12);
+                });
+
+                dataset[grp].forEach((pt, i) => {
+                    const yPos = headerH + i * rowHeight;
+                    const blockHeight = rowHeight - 4;
+                    const pad = dense ? 3 : 8;
+
+                    ctx.fillStyle = getAgronomicColor(pt.value, attr);
+                    ctx.fillRect(startX + pad, yPos, colWidth - pad * 2, blockHeight);
+
+                    // Realça a camada selecionada no filtro
+                    if (selectedDepth !== null && selectedDepth !== undefined && pt.depth === selectedDepth) {
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(startX + pad, yPos, colWidth - pad * 2, blockHeight);
+                    }
+
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = `bold ${dense ? 10 : 11}px Inter, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(nf(pt.value), cx, yPos + blockHeight / 2 + 4);
+
+                    if (colIndex === 0) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                        ctx.font = '10px Inter, sans-serif';
+                        ctx.textAlign = 'left';
+                        ctx.fillText(`${pt.depth} cm`, 3, yPos + blockHeight / 2 + 4);
+                    }
+                });
+            });
+        }
+
+        function renderTukeyResults(result, attr, selectedDepth) {
+            const { rows, anova, hsd, q } = result;
+
+            const cardList = document.getElementById('treatmentsCardList');
+            const tbody = document.getElementById('tukeyTableBody');
+            cardList.innerHTML = '';
+            tbody.innerHTML = '';
+
+            const barColors = [
+                'rgba(16, 185, 129, 0.85)', 'rgba(59, 130, 246, 0.85)', 'rgba(234, 179, 8, 0.85)',
+                'rgba(168, 85, 247, 0.85)', 'rgba(236, 72, 153, 0.85)', 'rgba(14, 165, 233, 0.85)',
+                'rgba(249, 115, 22, 0.85)', 'rgba(132, 204, 22, 0.85)', 'rgba(99, 102, 241, 0.85)'
+            ];
+
+            rows.forEach(r => {
+                const label = r.key.split(KEY_SEP).join(' › ');
+                cardList.innerHTML += `
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center hover:border-emerald-300 transition">
+                        <div class="pr-2">
+                            <span class="text-xs font-bold text-slate-800 block">${label}</span>
+                            <span class="text-[10px] text-slate-500">Média: <strong class="text-emerald-700">${nf(r.mean)}</strong> ${attr.unit} &bull; n=${r.n}</span>
+                        </div>
+                        <div class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-200">${r.letter}</div>
+                    </div>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-2.5 font-medium text-slate-800">${label}</td>
+                        <td class="p-2.5 text-center text-slate-500">${r.n}</td>
+                        <td class="p-2.5 font-semibold text-emerald-700">${nf(r.mean)}</td>
+                        <td class="p-2.5 text-slate-500">± ${nf(r.sd)}</td>
+                        <td class="p-2.5 text-slate-500">± ${nf(r.sem)}</td>
+                        <td class="p-2.5 text-center">
+                            <span class="inline-block bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-xs">${r.letter}</span>
+                        </td>
+                    </tr>`;
+            });
+
+            // Resumo da ANOVA que sustenta as letras
+            const pTxt = isFinite(anova.p)
+                ? (anova.p < 0.001 ? '&lt; 0,001' : nf(anova.p, 4))
+                : '—';
+            const signif = isFinite(anova.p) && anova.p <= 0.05;
+            document.getElementById('anovaSummary').innerHTML = `
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1">
+                    <span>Grupos (k): <strong class="text-slate-700">${anova.k}</strong></span>
+                    <span>Obs. (N): <strong class="text-slate-700">${anova.N}</strong></span>
+                    <span>GL resíduo: <strong class="text-slate-700">${anova.dfW}</strong></span>
+                    <span>F: <strong class="text-slate-700">${nf(anova.F)}</strong></span>
+                    <span>p: <strong class="${signif ? 'text-emerald-700' : 'text-amber-700'}">${pTxt}</strong></span>
+                    <span>CV: <strong class="text-slate-700">${nf(anova.cv, 1)}%</strong></span>
+                    <span>QM resíduo: <strong class="text-slate-700">${nf(anova.msW, 3)}</strong></span>
+                    <span>q(0,05): <strong class="text-slate-700">${nf(q, 3)}</strong></span>
+                    <span>DMS: <strong class="text-slate-700">${nf(hsd, 3)}</strong> ${attr.unit}</span>
+                </div>
+                <div class="mt-1.5 ${signif ? 'text-emerald-700' : 'text-amber-700'} font-semibold">
+                    ${signif
+                        ? 'ANOVA significativa (p ≤ 0,05): as letras apontam diferenças reais entre as médias.'
+                        : 'ANOVA não significativa (p > 0,05): não há diferença detectável — todos recebem a mesma letra.'}
+                </div>
+                ${(selectedDepth === null || selectedDepth === undefined) && DEPTHS.length > 1 ? `
+                <div class="mt-1.5 text-amber-700">
+                    &#9888; Perfil completo: as ${DEPTHS.length} camadas entram como se fossem repetições, mas são
+                    medidas repetidas da mesma parcela. Isso infla os graus de liberdade do resíduo
+                    (${anova.dfW} aqui) e deixa o teste otimista. Para a inferência sobre tratamentos, use o
+                    painel <strong>ANOVA &amp; Tukey por camada</strong> ou escolha uma profundidade no filtro.
+                </div>` : ''}`;
+
+            document.getElementById('grandMeanNote').innerHTML =
+                `Média geral do recorte (${anova.N} observações): <strong class="text-emerald-700">${nf(anova.grand)}</strong> ${attr.unit}`;
+
+            updateTukeyChart(
+                rows.map(r => r.key.split(KEY_SEP)),
+                rows.map(r => r.mean),
+                rows.map(r => r.sem),
+                rows.map(r => r.letter),
+                attr, barColors
+            );
+        }
+
+        function updateTukeyChart(labels, data, sems, letters, attr, colors) {
+            const ctx = document.getElementById('tukeyChart').getContext('2d');
+            if (tukeyChartInstance) tukeyChartInstance.destroy();
+
+            // Barras de erro (± erro padrão da média) e letra de Tukey sobre cada coluna
+            const errorBars = {
+                id: 'errorBars',
+                afterDatasetsDraw(chart) {
+                    const c = chart.ctx, y = chart.scales.y;
+                    const meta = chart.getDatasetMeta(0);
+                    c.save();
+                    meta.data.forEach((bar, i) => {
+                        const e = sems[i];
+                        let topPx = bar.y;
+                        if (isFinite(e) && e > 0) {
+                            const top = y.getPixelForValue(data[i] + e);
+                            const bottom = y.getPixelForValue(data[i] - e);
+                            c.strokeStyle = '#334155';
+                            c.lineWidth = 1.2;
+                            c.beginPath();
+                            c.moveTo(bar.x, top); c.lineTo(bar.x, bottom);
+                            c.moveTo(bar.x - 4, top); c.lineTo(bar.x + 4, top);
+                            c.moveTo(bar.x - 4, bottom); c.lineTo(bar.x + 4, bottom);
+                            c.stroke();
+                            topPx = top;
+                        }
+                        c.fillStyle = '#0f172a';
+                        c.font = 'bold 10px Inter, sans-serif';
+                        c.textAlign = 'center';
+                        c.fillText(letters[i], bar.x, topPx - 5);
+                    });
+                    c.restore();
+                }
+            };
+
+            tukeyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${attr.name} (${attr.unit})`,
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: '#059669',
+                        borderWidth: 1,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 18 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: items => items[0].label.split(',').join(' › '),
+                                label: c => `${nf(c.raw)} ${attr.unit}  (Tukey: ${letters[c.dataIndex]})`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, autoSkip: false } }
+                    }
+                },
+                plugins: [errorBars]
+            });
+        }
+
+        // Tabela cruzada: médias agrupadas por Tipo (colunas) e Grupo (linhas)
+        function renderPivotTable(attrKey, attr, selectedDepth) {
+            const escopo = (selectedDepth === null || selectedDepth === undefined)
+                ? rawData
+                : rawData.filter(d => d.Profun === selectedDepth);
+            const grupos = [...new Set(escopo.map(d => d.Grupo))];
+            const head = document.getElementById('pivotHead');
+            const body = document.getElementById('pivotBody');
+
+            head.innerHTML = `<tr>
+                <th class="p-2.5 rounded-l-lg text-left">Grupo \\ Tipo</th>
+                ${EPOCHS.map(e => `<th class="p-2.5 text-center">${e}<span class="block font-normal normal-case text-[9px] text-slate-500">${EPOCH_DATE[e] || ''}</span></th>`).join('')}
+                <th class="p-2.5 rounded-r-lg text-center bg-emerald-100 text-emerald-900">Média do Grupo</th>
+            </tr>`;
+
+            body.innerHTML = grupos.map(g => {
+                const cells = EPOCHS.map(e => {
+                    const s = summarize(valuesOf(escopo.filter(d => d.Grupo === g && d.Tipo === e), attrKey));
+                    return s.n
+                        ? `<td class="p-2.5 text-center">
+                               <span class="font-semibold text-slate-800">${nf(s.mean)}</span>
+                               <span class="block text-[10px] text-slate-500">± ${nf(s.sd)} (n=${s.n})</span>
+                           </td>`
+                        : '<td class="p-2.5 text-center text-slate-300">—</td>';
+                }).join('');
+                const rowStats = summarize(valuesOf(escopo.filter(d => d.Grupo === g), attrKey));
+                return `<tr class="hover:bg-slate-50 transition">
+                    <td class="p-2.5 font-medium text-slate-800">${g}</td>
+                    ${cells}
+                    <td class="p-2.5 text-center bg-emerald-50 font-bold text-emerald-800">${nf(rowStats.mean)}
+                        <span class="block text-[10px] font-normal text-emerald-700">n=${rowStats.n}</span></td>
+                </tr>`;
+            }).join('');
+
+            // Médias marginais por Tipo + média geral
+            const colCells = EPOCHS.map(e => {
+                const s = summarize(valuesOf(escopo.filter(d => d.Tipo === e), attrKey));
+                return `<td class="p-2.5 text-center font-bold text-emerald-800">${nf(s.mean)}
+                        <span class="block text-[10px] font-normal text-emerald-700">n=${s.n}</span></td>`;
+            }).join('');
+            const total = summarize(valuesOf(escopo, attrKey));
+            body.innerHTML += `<tr class="bg-emerald-50 border-t-2 border-emerald-200">
+                <td class="p-2.5 font-bold text-emerald-900">Média da Época</td>
+                ${colCells}
+                <td class="p-2.5 text-center font-bold text-emerald-900 bg-emerald-100">${nf(total.mean)}
+                    <span class="block text-[10px] font-normal text-emerald-700">n=${total.n}</span></td>
+            </tr>`;
+
+            document.getElementById('pivotAttrLabel').innerText =
+                `${attr.name} (${attr.unit}) • ${(selectedDepth === null || selectedDepth === undefined) ? 'perfil completo' : selectedDepth + ' cm'}`;
+        }
+
+        function renderEvolutionChart(grouping, selectedAttr, attr, selectedDepth) {
+            const escopo = (selectedDepth === null || selectedDepth === undefined)
+                ? rawData
+                : rawData.filter(d => d.Profun === selectedDepth);
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            if (evolutionChartInstance) evolutionChartInstance.destroy();
+
+            // O eixo X já é a época, então as linhas usam só a dimensão de tratamento
+            const lineKeys = grouping.keys.filter(k => k !== 'Tipo');
+            const keys = lineKeys.length ? lineKeys : ['Grupo'];
+            const series = [...new Set(escopo.map(d => keyOf(d, keys)))].filter(Boolean);
+
+            const palette = [
+                { border: '#059669', bg: 'rgba(5, 150, 105, 0.10)' },
+                { border: '#2563eb', bg: 'rgba(37, 99, 235, 0.10)' },
+                { border: '#d97706', bg: 'rgba(217, 119, 6, 0.10)' },
+                { border: '#9333ea', bg: 'rgba(147, 51, 234, 0.10)' }
+            ];
+
+            const datasets = series.map((s, idx) => {
+                const color = palette[idx % palette.length];
+                return {
+                    label: s.split(KEY_SEP).join(' › '),
+                    // época sem dado fica null (quebra a linha) em vez de virar zero
+                    data: EPOCHS.map(ep => {
+                        const v = valuesOf(escopo.filter(d => keyOf(d, keys) === s && d.Tipo === ep), selectedAttr);
+                        return v.length ? meanOf(v) : null;
+                    }),
+                    borderColor: color.border,
+                    backgroundColor: color.bg,
+                    tension: 0.3,
+                    fill: true,
+                    spanGaps: false,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                };
+            });
+
+            evolutionChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: EPOCHS.map(e => {
+                        const d = EPOCH_DATE[e];
+                        return d ? `${e} (${d.split('-').reverse().slice(0, 2).join('/')})` : e;
+                    }),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { font: { size: 11, weight: 'bold' }, usePointStyle: true } },
+                        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${nf(c.raw)} ${attr.unit}` } }
+                    },
+                    scales: {
+                        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                        x: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } }
+                    }
+                }
+            });
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
